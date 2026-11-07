@@ -1,5 +1,5 @@
 // 全ファイルを1つのHTMLにまとめる。 npm run build → dist/rengeki.html
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -31,7 +31,15 @@ writeFileSync(root + 'dist/rengeki.html', out);
 // 普通のWebサイトとして置く場合や、公開前の確認に使う完全なページ
 writeFileSync(root + 'dist/index.html', `<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#15101c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="連撃">
 ${out}</html>
 `);
+for (const file of ['manifest.webmanifest', 'icon.svg']) copyFileSync(root + file, root + 'dist/' + file);
 console.log(`dist/rengeki.html ${(out.length / 1024).toFixed(0)} KB`);

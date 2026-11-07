@@ -5,7 +5,7 @@ import { createCpu, dummyInput } from './ai.js';
 import { InputManager } from './input.js';
 import { Renderer, paintFighter } from './render.js';
 import { POSES } from './poses.js';
-import { GROUND_Y } from './config.js';
+import { GROUND_Y, VIEW_W, VIEW_H, MAX_VIEW_W } from './config.js';
 import { unlockAudio, playSound, isMuted, setMuted } from './audio.js';
 import { RollbackSession } from './rollback.js';
 import { OnlineLink, makeRoomCode, normalizeRoomCode, onlineAvailable } from './net.js';
@@ -530,16 +530,18 @@ function fitCanvas() {
   const w = box.clientWidth;
   const h = box.clientHeight;
   if (!w || !h) return;
-  const scale = Math.min(w / 1280, h / 720);
-  const cw = Math.round(1280 * scale);
-  const ch = Math.round(720 * scale);
+  // 16:9 より細長い画面では、黒帯を出さずにステージを左右へ広げて見せる
+  const viewW = Math.max(VIEW_W, Math.min(MAX_VIEW_W, VIEW_H * w / h));
+  const scale = Math.min(w / viewW, h / VIEW_H);
+  const cw = Math.round(viewW * scale);
+  const ch = Math.round(VIEW_H * scale);
   renderer.resize(cw, ch);
   box.style.setProperty('--canvas-top', `${Math.round((h - ch) / 2)}px`);
   box.style.setProperty('--canvas-h', `${ch}px`);
 }
 
-window.addEventListener('resize', fitCanvas);
-window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 200));
+// 画面の回転やアドレスバーの出入りでも、実際の大きさが変わった時に合わせ直す
+new ResizeObserver(fitCanvas).observe($('#screen-battle'));
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && app.match && !app.resultShown && !app.net) togglePause(true);
 });
@@ -642,18 +644,54 @@ syncSoundLabel();
 $('#dummy-mode').addEventListener('change', (e) => { app.dummy = e.target.value; e.target.blur(); });
 $('#show-hitbox').addEventListener('change', (e) => { app.hitboxes = e.target.checked; e.target.blur(); });
 
+/* ---------- 全画面 ---------- */
+
 const fullBtn = $('#btn-full');
-if (!document.documentElement.requestFullscreen) fullBtn.hidden = true;
+const canFullscreen = typeof document.documentElement.requestFullscreen === 'function';
+const phoneLandscape = window.matchMedia('(orientation: landscape) and (pointer: coarse)');
+const launchedFromHome = navigator.standalone === true
+  || window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
+let fullOptOut = false; // 全画面ボタンで自分から解除したら、勝手に戻さない
+
+function enterFullscreen() {
+  return document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+}
+
+// ブラウザは「画面に触った直後」しか全画面を許さない。回転の直後に試して、
+// 断られたら次に画面を触った時に入る
+function autoFullscreen(e) {
+  if (!canFullscreen || fullOptOut || document.fullscreenElement || !phoneLandscape.matches) return;
+  if (e.target === fullBtn) return;
+  enterFullscreen();
+}
+phoneLandscape.addEventListener('change', autoFullscreen);
+window.addEventListener('pointerup', autoFullscreen, { capture: true });
+window.addEventListener('touchend', autoFullscreen, { capture: true });
+
+function syncFullLabel() {
+  fullBtn.textContent = document.fullscreenElement ? '全画面を解除' : '全画面';
+}
+document.addEventListener('fullscreenchange', syncFullLabel);
+
+// iPhone の Safari には全画面の機能がないので、ホーム画面に追加する手順を案内する
+if (launchedFromHome || (!canFullscreen && !window.matchMedia('(pointer: coarse)').matches)) fullBtn.hidden = true;
 fullBtn.addEventListener('click', async () => {
+  if (!canFullscreen) {
+    $('#fullhint').hidden = false;
+    return;
+  }
   try {
     if (document.fullscreenElement) {
+      fullOptOut = true;
       await document.exitFullscreen();
     } else {
-      await document.documentElement.requestFullscreen();
+      fullOptOut = false;
+      await enterFullscreen();
       if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape').catch(() => {});
     }
   } catch { /* 全画面が使えない環境ではそのまま遊ぶ */ }
 });
+bind('#btn-fullhint-close', () => { $('#fullhint').hidden = true; });
 
 window.addEventListener('pointerdown', unlockAudio, { capture: true });
 window.addEventListener('keydown', unlockAudio, { capture: true });

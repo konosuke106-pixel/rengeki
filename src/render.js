@@ -1,5 +1,5 @@
 // 画面描画。戦闘の結果には一切影響しない（見た目だけの担当）。
-import { VIEW_W, VIEW_H, GROUND_Y, STAGE_HALF, METER_MAX, SUPER_COST } from './config.js';
+import { VIEW_W, VIEW_H, MAX_VIEW_W, GROUND_Y, STAGE_HALF, METER_MAX, SUPER_COST } from './config.js';
 import { CHARS } from './characters.js';
 import { moveOf, activeBoxes, hurtboxOf } from './sim.js';
 import { POSES, clonePose, blendPose, targetPose } from './poses.js';
@@ -10,6 +10,7 @@ const PAPER = '#f5ecd6';
 const DISPLAY = '"Dela Gothic One", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif';
 const UI_FONT = '"Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif';
 
+const SKY_PAD = (MAX_VIEW_W - VIEW_W) / 2;
 const SFX_TEXT = { l: ['パシッ', 'ビシッ'], m: ['バキッ', 'ドカッ'], h: ['ドゴォ', 'ズガッ'], s: ['ズドン', 'ゴォッ'] };
 
 const STAGES = {
@@ -62,22 +63,22 @@ function makeLayer(w, h, paint) {
 
 function buildStage(id) {
   const st = STAGES[id];
-  const sky = makeLayer(VIEW_W, VIEW_H, (ctx) => {
+  const sky = makeLayer(MAX_VIEW_W, VIEW_H, (ctx) => {
     // 木版画のように色の帯で塗り分ける
     const bands = st.sky;
     const bandH = GROUND_Y / bands.length;
     bands.forEach((color, i) => {
       ctx.fillStyle = color;
-      ctx.fillRect(0, i * bandH, VIEW_W, bandH + 1);
+      ctx.fillRect(0, i * bandH, MAX_VIEW_W, bandH + 1);
     });
     ctx.fillStyle = st.sun;
     ctx.beginPath();
-    ctx.arc(st.sunXY[0], st.sunXY[1], st.sunR, 0, Math.PI * 2);
+    ctx.arc(st.sunXY[0] + SKY_PAD, st.sunXY[1], st.sunR, 0, Math.PI * 2);
     ctx.fill();
     // 紙の質感
     const r = seeded(7);
     ctx.fillStyle = 'rgba(21,16,28,.05)';
-    for (let i = 0; i < 2600; i++) ctx.fillRect(r() * VIEW_W, r() * VIEW_H, 2, 2);
+    for (let i = 0; i < 4400; i++) ctx.fillRect(r() * MAX_VIEW_W, r() * VIEW_H, 2, 2);
   });
   const far = makeLayer(2300, VIEW_H, (ctx) => {
     ridge(ctx, st.far, 2300, VIEW_H, 470, 150, id.length * 11 + 3);
@@ -153,6 +154,7 @@ export class Renderer {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.scale = 1;
+    this.extraX = 0; // 16:9 より細長い画面で、左右に余分に見せる幅
     this.stage = null;
     this.reset();
   }
@@ -183,7 +185,8 @@ export class Renderer {
     this.canvas.style.height = `${cssH}px`;
     this.canvas.width = Math.round(cssW * dpr);
     this.canvas.height = Math.round(cssH * dpr);
-    this.scale = this.canvas.width / VIEW_W;
+    this.scale = this.canvas.height / VIEW_H;
+    this.extraX = Math.max(0, (this.canvas.width / this.scale - VIEW_W) / 2);
   }
 
   // 戦闘側から届いた出来事を、エフェクトと音に変換する
@@ -347,7 +350,7 @@ export class Renderer {
     });
 
     const mid = (s.ps[0].x + s.ps[1].x) / 2;
-    const lim = STAGE_HALF - VIEW_W / 2 + 60;
+    const lim = Math.max(0, STAGE_HALF - VIEW_W / 2 - this.extraX + 60);
     const tx = Math.max(-lim, Math.min(lim, mid));
     this.camX += (tx - this.camX) * 0.16;
   }
@@ -355,7 +358,8 @@ export class Renderer {
   draw(s, opts = {}) {
     const ctx = this.ctx;
     const sc = this.scale;
-    ctx.setTransform(sc, 0, 0, sc, 0, 0);
+    // 1280x720 の枠を画面の中央に置く。左右の余りは -extraX 〜 VIEW_W + extraX に見える
+    ctx.setTransform(sc, 0, 0, sc, this.extraX * sc, 0);
     const shx = this.shake ? (Math.random() - 0.5) * this.shake : 0;
     const shy = this.shake ? (Math.random() - 0.5) * this.shake : 0;
 
@@ -379,11 +383,15 @@ export class Renderer {
 
     if (this.flash > 0) {
       ctx.fillStyle = `rgba(255,250,235,${this.flash * 0.75})`;
-      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      this.fillView();
     }
     if (this.superCut) this.drawSuperCut();
     this.drawHud(s, opts);
     this.drawBanner();
+  }
+
+  fillView() {
+    this.ctx.fillRect(-this.extraX, 0, VIEW_W + this.extraX * 2, VIEW_H);
   }
 
   drawStage(s, shx, shy) {
@@ -391,10 +399,10 @@ export class Renderer {
     const st = this.stage;
     if (!st) {
       ctx.fillStyle = INK;
-      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      this.fillView();
       return;
     }
-    ctx.drawImage(st.sky, 0, 0);
+    ctx.drawImage(st.sky, -SKY_PAD, 0);
     const norm = this.camX;
     ctx.drawImage(st.far, -515 - norm * 0.18 + shx * 0.3, shy * 0.3);
     ctx.drawImage(st.near, -710 - norm * 0.4 + shx * 0.5, shy * 0.5);
@@ -402,7 +410,7 @@ export class Renderer {
     if (st.def.rain) {
       if (!this.rainDrops) {
         const r = seeded(99);
-        this.rainDrops = Array.from({ length: 90 }, () => ({ x: r() * VIEW_W, y: r() * VIEW_H, v: 14 + r() * 10 }));
+        this.rainDrops = Array.from({ length: 150 }, () => ({ x: r() * MAX_VIEW_W - SKY_PAD, y: r() * VIEW_H, v: 14 + r() * 10 }));
       }
       ctx.strokeStyle = 'rgba(190,210,255,.42)';
       ctx.lineWidth = 2;
@@ -410,8 +418,8 @@ export class Renderer {
       for (const d of this.rainDrops) {
         d.y += d.v;
         d.x -= d.v * 0.25;
-        if (d.y > VIEW_H) { d.y = -20; d.x = Math.random() * VIEW_W * 1.2; }
-        if (d.x < 0) d.x += VIEW_W;
+        if (d.y > VIEW_H) { d.y = -20; d.x = Math.random() * MAX_VIEW_W * 1.2 - SKY_PAD; }
+        if (d.x < -SKY_PAD) d.x += MAX_VIEW_W;
         ctx.moveTo(d.x, d.y);
         ctx.lineTo(d.x + 5, d.y - 20);
       }
@@ -419,7 +427,7 @@ export class Renderer {
     }
     if (s.freeze > 0) {
       ctx.fillStyle = 'rgba(21,16,28,.62)';
-      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      this.fillView();
     }
   }
 
@@ -625,20 +633,21 @@ export class Renderer {
     for (let i = 0; i < 44; i++) {
       const a = (i / 44) * Math.PI * 2 + (this.clock % 3) * 0.05;
       ctx.beginPath();
-      ctx.moveTo(Math.cos(a - 0.013) * 900, Math.sin(a - 0.013) * 900);
+      ctx.moveTo(Math.cos(a - 0.013) * 1300, Math.sin(a - 0.013) * 1300);
       ctx.lineTo(Math.cos(a) * 280, Math.sin(a) * 180);
-      ctx.lineTo(Math.cos(a + 0.013) * 900, Math.sin(a + 0.013) * 900);
+      ctx.lineTo(Math.cos(a + 0.013) * 1300, Math.sin(a + 0.013) * 1300);
       ctx.fill();
     }
     ctx.restore();
     const bandY = 244;
     const bandH = 150;
     ctx.save();
-    ctx.translate(c.by === 0 ? -VIEW_W * (1 - k) : VIEW_W * (1 - k), 0);
+    const fullW = VIEW_W + this.extraX * 2;
+    ctx.translate(c.by === 0 ? -fullW * (1 - k) : fullW * (1 - k), 0);
     ctx.fillStyle = INK;
-    ctx.fillRect(0, bandY - 8, VIEW_W, bandH + 16);
+    ctx.fillRect(-this.extraX, bandY - 8, fullW, bandH + 16);
     ctx.fillStyle = pal.gi;
-    ctx.fillRect(0, bandY, VIEW_W, bandH);
+    ctx.fillRect(-this.extraX, bandY, fullW, bandH);
     ctx.fillStyle = pal.dark;
     ctx.font = `150px ${DISPLAY}`;
     ctx.textAlign = 'center';

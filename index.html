@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>連撃 RENGEKI</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#15101c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="連撃">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
 <link rel="stylesheet" href="styles.css">
@@ -148,6 +155,19 @@
         </div>
       </div>
       <div class="panel-buttons"><button class="action" type="button" id="btn-howto-close">閉じる</button></div>
+    </div>
+  </div>
+
+  <div id="fullhint" class="overlay" hidden>
+    <div class="panel">
+      <h2>全画面で遊ぶ</h2>
+      <p>iPhone の Safari はブラウザのバーを消せないので、ホーム画面に追加して開いてね。</p>
+      <ol>
+        <li>Safari の<kbd>共有</kbd>ボタン（四角から上向きの矢印）を押す</li>
+        <li><kbd>ホーム画面に追加</kbd>を押して、右上の<kbd>追加</kbd>を押す</li>
+        <li>ホーム画面にできた<kbd>連撃</kbd>から開く</li>
+      </ol>
+      <div class="panel-buttons"><button class="action" type="button" id="btn-fullhint-close">閉じる</button></div>
     </div>
   </div>
 

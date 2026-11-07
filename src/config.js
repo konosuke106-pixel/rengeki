@@ -1,6 +1,7 @@
 // ゲーム全体の定数。画面は 1280x720 の論理座標で扱う。
 export const VIEW_W = 1280;
 export const VIEW_H = 720;
+export const MAX_VIEW_W = 2160;   // 細長い画面で左右に見せる限界（戦闘の結果には影響しない）
 export const GROUND_Y = 628;      // 地面の画面上の高さ
 export const STAGE_HALF = 820;    // ステージの端（中心からの距離）
 export const MAX_SEP = 1040;      // 2人が離れられる最大距離（画面内に収める）

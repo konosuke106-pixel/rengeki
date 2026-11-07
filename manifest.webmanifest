@@ -1,0 +1,13 @@
+{
+  "name": "連撃 RENGEKI",
+  "short_name": "連撃",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#15101c",
+  "theme_color": "#15101c",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
