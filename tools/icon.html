@@ -1,0 +1,11 @@
+<!doctype html>
+<!-- ホーム画面アイコンの元絵。tools/make-icons.ps1 で PNG にする -->
+<html lang="ja"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&text=%E9%80%A3&display=block">
+<style>
+  html, body { margin: 0; width: 100vw; height: 100vh; overflow: hidden; background: #e4552a; }
+  .sun { position: absolute; left: 50%; top: 50%; width: 72vmin; height: 72vmin; margin: -36vmin 0 0 -36vmin; border-radius: 50%; background: #f6c445; }
+  .ground { position: absolute; left: 0; right: 0; bottom: 0; height: 22vmin; background: #15101c; clip-path: polygon(0 45%, 18% 15%, 34% 50%, 55% 0, 74% 45%, 88% 20%, 100% 50%, 100% 100%, 0 100%); }
+  .mark { position: absolute; inset: 0; display: grid; place-items: center; font: 400 56vmin/1 "Dela Gothic One", sans-serif; color: #15101c; }
+</style></head>
+<body><div class="sun"></div><div class="ground"></div><div class="mark">連</div></body></html>

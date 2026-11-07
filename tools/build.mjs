@@ -33,7 +33,8 @@ writeFileSync(root + 'dist/index.html', `<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#15101c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -41,5 +42,5 @@ writeFileSync(root + 'dist/index.html', `<!doctype html>
 <meta name="apple-mobile-web-app-title" content="連撃">
 ${out}</html>
 `);
-for (const file of ['manifest.webmanifest', 'icon.svg']) copyFileSync(root + file, root + 'dist/' + file);
+for (const file of ['manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png']) copyFileSync(root + file, root + 'dist/' + file);
 console.log(`dist/rengeki.html ${(out.length / 1024).toFixed(0)} KB`);
