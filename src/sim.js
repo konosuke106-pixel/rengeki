@@ -218,13 +218,14 @@ function groundNeutral(s, p, o) {
   faceOpponent(p, o);
   const mask = current(p);
   if (tryMove(s, p, null)) return;
-  if (p.dashBit && s.t - p.dashT <= 3) {
+  // 技や着地の硬直が終わる直前に入れたダッシュも出るよう、少し猶予を持たせる
+  if (p.dashBit && s.t - p.dashT <= 8) {
     const dir = p.dashBit === BTN.R ? 1 : -1;
     p.dashBit = 0;
     p.st = 'dash';
     p.f = 0;
     p.dashDir = dir;
-    if (dir !== p.facing) p.inv = Math.max(p.inv, 7);
+    if (dir !== p.facing) p.inv = Math.max(p.inv, 12); // 後ろダッシュの出始めは攻撃をすり抜ける
     emit(s, { t: 'dash', x: p.x, by: p.idx });
     return;
   }

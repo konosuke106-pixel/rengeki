@@ -203,6 +203,10 @@ const GUIDE_STEPS = [
     done: (s) => s.events.some((e) => e.t === 'block' && e.by === 1),
   },
   {
+    title: 'かわす', touch: 'スティックを相手と反対へ素早くはじこう。後ろへ飛びのいて攻撃をかわせるよ', keys: '相手と反対の方向（A か D）を素早く2回押そう。後ろへ飛びのいて攻撃をかわせるよ', hint: '#stick-base', dummy: 'attack',
+    done: (s, p) => p.st === 'dash' && p.dashDir !== p.facing,
+  },
+  {
     title: '攻撃', touch: '近づいて「弱」を押し、相手に当てよう', keys: '近づいて J を押し、相手に当てよう', hint: '[data-btn="A"]',
     done: (s) => s.events.some((e) => e.t === 'hit' && e.by === 0),
   },

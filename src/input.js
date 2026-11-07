@@ -11,6 +11,22 @@ const KEYMAP_P2 = {
   Comma: BTN.A, Period: BTN.B, Slash: BTN.C, Semicolon: BTN.S, Quote: BTN.T, BracketRight: BTN.X,
 };
 
+// スティックを素早くはじいたか判定する。ゆっくり倒して歩くのと区別するため、
+// 中心を離れてからの時間と距離で見る。dx,dy は px、ms は中心を離れてからの時間
+const FLICK_MS = 75;
+const FLICK_DIST = 34;
+const FLICK_RELEASE_MS = 160;
+const FLICK_RELEASE_DIST = 26;
+
+export function flickBit(dx, dy, ms, released = false) {
+  if (Math.abs(dx) < Math.abs(dy) * 1.6) return 0;
+  const fast = released
+    ? ms <= FLICK_RELEASE_MS && Math.abs(dx) >= FLICK_RELEASE_DIST
+    : ms <= FLICK_MS && Math.abs(dx) >= FLICK_DIST;
+  if (!fast) return 0;
+  return dx > 0 ? BTN.R : BTN.L;
+}
+
 function cleanDirections(m) {
   let mask = m;
   if ((mask & BTN.L) && (mask & BTN.R)) mask &= ~(BTN.L | BTN.R);
@@ -27,6 +43,7 @@ export class InputManager {
     this.touchTap = 0;
     this.touchGuard = false;
     this.backBit = 0;  // 相手と反対の方向。ガードボタンで使うので画面側が毎コマ入れる
+    this.flickQueue = [];  // はじいた時に流す「同じ方向に2回」の入力
     this.onPause = null;
     this.padPauseHeld = false;
     window.addEventListener('keydown', (e) => {
@@ -50,6 +67,7 @@ export class InputManager {
       this.touchDir = 0;
       this.touchBtn = 0;
       this.touchGuard = false;
+      this.flickQueue = [];
     });
   }
 
@@ -97,6 +115,7 @@ export class InputManager {
       this.touchTap = 0;
       if (solo) m |= this.keyMask(KEYMAP_P2);
       if (this.touchGuard) m = (m & ~(BTN.L | BTN.R)) | this.backBit;
+      if (this.flickQueue.length) m = (m & ~(BTN.L | BTN.R)) | this.flickQueue.shift();
     } else {
       m |= this.keyMask(KEYMAP_P2);
     }
@@ -112,9 +131,27 @@ export class InputManager {
     let cx = 0;
     let cy = 0;
     const R = 46;
+    let leftCenterAt = 0;  // 最後に中心付近にいた時刻
+    let flicked = false;
+    let lastDx = 0;
+    let lastDy = 0;
 
-    const moveKnob = (dx, dy) => {
+    const flick = (bit) => {
+      if (!bit || flicked) return;
+      flicked = true;
+      this.flickQueue = [bit, 0, bit];
+    };
+
+    const moveKnob = (dx, dy, t) => {
       const d = Math.hypot(dx, dy);
+      lastDx = dx;
+      lastDy = dy;
+      if (d < 15) {
+        leftCenterAt = t;
+        flicked = false;
+      } else {
+        flick(flickBit(dx, dy, t - leftCenterAt));
+      }
       const lim = d > R ? R / d : 1;
       knob.style.transform = `translate(${dx * lim}px, ${dy * lim}px)`;
       let m = 0;
@@ -140,14 +177,15 @@ export class InputManager {
       base.style.left = `${Math.max(62, cx - rect.left)}px`; // 説明の文字が画面の外に出ないように
       base.style.top = `${cy - rect.top}px`;
       base.classList.add('active');
-      moveKnob(0, 0);
+      moveKnob(0, 0, e.timeStamp);
     });
     zone.addEventListener('pointermove', (e) => {
       if (e.pointerId !== stickId) return;
-      moveKnob(e.clientX - cx, e.clientY - cy);
+      moveKnob(e.clientX - cx, e.clientY - cy, e.timeStamp);
     });
     const endStick = (e) => {
       if (e.pointerId !== stickId) return;
+      if (e.type === 'pointerup') flick(flickBit(lastDx, lastDy, e.timeStamp - leftCenterAt, true));
       stickId = null;
       this.touchDir = 0;
       knob.style.transform = '';
