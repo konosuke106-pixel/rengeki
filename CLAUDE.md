@@ -30,13 +30,21 @@
 - ガード、投げと投げ抜け、ダッシュ、飛び道具、カウンター、アーマー
 - 長いコンボほどダメージとのけぞりが減る
 - テスト24件が通過。キーボード、画面ボタンの押下、結果画面まではブラウザで確認済み
-- オンライン対戦のコードは完成（部屋コード、巻き戻し同期、再戦、切断の処理）。`src/rollback.js` と `src/net.js`
-  - 確認できているのは仮想回線だけ：`http://localhost:5180/tools/duo.html`（遅延50ms・ゆらぎ20ms・紛失3%）で2,200コマ超、状態の照合18回がすべて一致
+- オンライン対戦を公開済み（部屋コード、巻き戻し同期、再戦、切断の処理）。`src/rollback.js` と `src/net.js`
   - 通信は、部屋での出会いに Supabase Realtime、対戦中は可能なら WebRTC 直結、だめなら Supabase 中継。DB は使わない
+  - 確認は同じPC内の2画面のみ。公開ページで直結、本物のサーバーで中継を試し、食い違いなし（`tools/duo.html` で再現できる）
+
+## 公開先
+- 本番：https://konosuke106-pixel.github.io/rengeki/
+- GitHub：`konosuke106-pixel/rengeki`（Public）。`main` に push すると、テスト通過後に自動で公開される
+- コミットのメールは GitHub の匿名アドレスを使う（このリポジトリの設定済み）。公開リポジトリなので個人情報を書かない
+- このPCからの push：`git -c http.sslBackend=schannel push origin main`
+- Supabase：プロジェクト `rengeki`（ref `pneboddgrvktehjslplg`、東京、無料）。使う鍵は Publishable key だけ（`src/online-config.js`）
 
 ## 保留中
-- オンラインの本番公開：作業中。本物のサーバーと回線での確認は未実施
-- Artifact の中では WebSocket も WebRTC も使えないので、オンラインは普通のWebサイトでしか動かない。公開済みの Artifact は試作1号のままで、オンラインは「準備中」
+- 別々の回線どうし（特にスマホ回線）での対戦は未確認。直結できないと中継になり遅くなる。TURN サーバーは未導入
+- 部屋コードと通信はログイン不要なので、広く配る前に乱用対策を入れる
+- Artifact の中では WebSocket も WebRTC も使えない。公開済みの Artifact は試作1号のままで、オンラインは「準備中」
 - 本物のスマホ実機とゲームパッドでの確認（スマホ幅の表示とボタン押下はブラウザの疑似表示で確認しただけ）
 - 手触りと強さのバランス調整（人が遊んで決める）
 - 音楽、キャラの絵の作り込み、キャラ追加
