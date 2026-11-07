@@ -1,0 +1,25 @@
+// ゲーム全体の定数。画面は 1280x720 の論理座標で扱う。
+export const VIEW_W = 1280;
+export const VIEW_H = 720;
+export const GROUND_Y = 628;      // 地面の画面上の高さ
+export const STAGE_HALF = 820;    // ステージの端（中心からの距離）
+export const MAX_SEP = 1040;      // 2人が離れられる最大距離（画面内に収める）
+export const GRAVITY = 0.95;
+export const ROUND_FRAMES = 99 * 60;
+export const WINS_NEEDED = 2;
+export const MAX_ROUNDS = 5;
+export const METER_MAX = 200;
+export const SUPER_COST = 100;
+export const BUFFER_FRAMES = 7;   // 先行入力の猶予
+
+// 1フレーム分の入力はこのビットの組み合わせで表す
+export const BTN = {
+  U: 1, D: 2, L: 4, R: 8,
+  A: 16,   // 弱
+  B: 32,   // 中
+  C: 64,   // 強
+  S: 128,  // 必殺
+  T: 256,  // 投げ
+  X: 512,  // 超必殺
+};
+export const ATTACK_MASK = BTN.A | BTN.B | BTN.C | BTN.S | BTN.T | BTN.X;
