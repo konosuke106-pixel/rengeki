@@ -29,7 +29,7 @@
     <nav class="title-menu" aria-label="モード選択">
       <button class="mode" type="button" data-mode="cpu"><b>CPU対戦</b><span>3本勝負でコンピュータと戦う</span></button>
       <button class="mode" type="button" data-mode="versus"><b>2人対戦</b><span>1台のキーボードかゲームパッドで</span></button>
-      <button class="mode" type="button" data-mode="training"><b>練習</b><span>コンボを試す。体力とゲージは自動で回復</span></button>
+      <button class="mode" type="button" data-mode="training"><b>練習</b><span>操作ガイドつき。コンボも試せる</span></button>
       <button class="mode" type="button" id="btn-online"><b>オンライン対戦</b><span>部屋コードで友だちと戦う</span></button>
       <div class="title-sub">
         <button class="chip" type="button" id="btn-howto">遊び方</button>
@@ -57,15 +57,28 @@
     <canvas id="game" width="1280" height="720" aria-label="対戦画面"></canvas>
     <button id="btn-pause" type="button" aria-label="一時停止">II</button>
     <div id="touch">
-      <div id="stick-zone"><div id="stick-base"><div id="stick-knob"></div></div></div>
+      <div id="stick-zone"><div id="stick-base">
+        <div id="stick-knob"></div>
+        <span class="stick-label up">ジャンプ</span>
+        <span class="stick-label down">しゃがむ</span>
+        <span class="stick-label left" id="stick-left">ガード</span>
+        <span class="stick-label right" id="stick-right">前へ</span>
+      </div></div>
       <div id="touch-buttons">
+        <button class="tbtn word jp" type="button" data-btn="U">ジャンプ</button>
+        <button class="tbtn word gd" type="button" data-guard="1">ガード</button>
         <button class="tbtn" type="button" data-btn="A">弱</button>
         <button class="tbtn" type="button" data-btn="B">中</button>
         <button class="tbtn" type="button" data-btn="C">強</button>
-        <button class="tbtn th" type="button" data-btn="T">投</button>
-        <button class="tbtn sp" type="button" data-btn="S">必</button>
+        <button class="tbtn word th" type="button" data-btn="T">投げ</button>
+        <button class="tbtn word sp" type="button" data-btn="S">必殺</button>
         <button class="tbtn su" type="button" data-btn="X" id="btn-super">超</button>
       </div>
+    </div>
+    <div id="guide" role="status" hidden>
+      <div class="guide-head"><span id="guide-count"></span><b id="guide-title"></b></div>
+      <p id="guide-text"></p>
+      <button class="chip" type="button" id="guide-skip">ガイドを終わる</button>
     </div>
     <div id="pause" class="overlay" hidden>
       <div class="panel">
@@ -77,10 +90,15 @@
               <option value="crouch">しゃがみ</option>
               <option value="block">全部ガード</option>
               <option value="jump">ジャンプし続ける</option>
+              <option value="attack">攻撃してくる</option>
             </select>
           </label>
           <label><input type="checkbox" id="show-hitbox"> 当たり判定を表示</label>
+          <button class="chip" type="button" id="btn-guide">操作ガイドをもう一度</button>
         </div>
+        <h3>動かし方</h3>
+        <p class="controls-short only-touch">スティックで移動。<kbd>ジャンプ</kbd>で飛ぶ。スティック下でしゃがむ。<kbd>ガード</kbd>を押し続けると防ぐ（足元への攻撃はスティック下も一緒に）</p>
+        <p class="controls-short only-keys"><kbd>A D</kbd> で移動。<kbd>W</kbd> で飛ぶ。<kbd>S</kbd> でしゃがむ。相手と反対の方向を押し続けると防ぐ（足元への攻撃は <kbd>S</kbd> も一緒に）</p>
         <h3 id="movelist-name">技</h3>
         <table><tbody id="movelist"></tbody></table>
         <div class="panel-buttons">
@@ -136,25 +154,39 @@
       <h2>遊び方</h2>
       <div class="howto-grid">
         <div>
-          <h3>コンボの基本</h3>
-          <ul>
-            <li>当たったら <kbd>弱→中→強→必</kbd> の順に押すとつながる</li>
-            <li><kbd>下＋強</kbd> で打ち上げ、すぐ<kbd>上</kbd>で追いかけて空中で <kbd>弱→中→強</kbd></li>
-            <li>必殺技が当たった瞬間に <kbd>超</kbd> でさらにつながる</li>
-            <li>後ろを押すとガード。下段はしゃがみガードだけ</li>
-            <li>同じ方向に2回入力でダッシュ</li>
+          <h3>動かし方</h3>
+          <ul class="only-touch">
+            <li><b>移動：</b>左のスティックを左右に倒す</li>
+            <li><b>ジャンプ：</b><kbd>ジャンプ</kbd>を押す（スティックを上に倒してもOK）</li>
+            <li><b>しゃがむ：</b>スティックを下に倒す</li>
+            <li><b>ガード：</b><kbd>ガード</kbd>を押し続ける（スティックを相手と反対に倒してもOK）。足元への攻撃は、スティック下も一緒に</li>
+            <li><b>ダッシュ：</b>スティックを同じ方向に素早く2回倒す</li>
+          </ul>
+          <ul class="only-keys">
+            <li><b>移動：</b><kbd>A D</kbd></li>
+            <li><b>ジャンプ：</b><kbd>W</kbd></li>
+            <li><b>しゃがむ：</b><kbd>S</kbd></li>
+            <li><b>ガード：</b>相手と反対の方向を押し続ける。足元への攻撃は <kbd>S</kbd> も一緒に</li>
+            <li><b>ダッシュ：</b>同じ方向を素早く2回押す</li>
+            <li><b>攻撃：</b><kbd>J K L</kbd> 弱中強、<kbd>U</kbd> 必殺、<kbd>I</kbd> 投げ、<kbd>O</kbd> 超</li>
+            <li><b>2P：</b><kbd>矢印</kbd> で移動、<kbd>テンキー1〜6</kbd> または <kbd>, . / ; ' ]</kbd> で攻撃</li>
           </ul>
         </div>
         <div>
-          <h3>キーボード</h3>
-          <p>1P：<kbd>WASD</kbd> 移動、<kbd>J K L</kbd> 弱中強、<kbd>U</kbd> 必殺、<kbd>I</kbd> 投げ、<kbd>O</kbd> 超</p>
-          <p>2P：<kbd>矢印</kbd> 移動、<kbd>テンキー1〜6</kbd> または <kbd>, . / ; ' ]</kbd></p>
-          <p><kbd>Esc</kbd> か画面上の <kbd>II</kbd> で一時停止（技表はここで見られる）</p>
-          <h3>必殺技</h3>
-          <p>必殺ボタン＋方向（なし／下／前）で出る。↓↘→＋攻撃などのコマンドでも出せる</p>
+          <h3>コンボ</h3>
+          <ul>
+            <li>当たったら <kbd>弱→中→強→必殺</kbd> の順に押すとつながる</li>
+            <li>下を押しながら <kbd>強</kbd> で打ち上げ、すぐジャンプして空中で <kbd>弱→中→強</kbd></li>
+            <li>必殺技が当たった瞬間に <kbd>超</kbd> を押すとさらにつながる（ゲージが必要）</li>
+            <li><kbd>投げ</kbd> は相手の近くで押す</li>
+          </ul>
+          <p>必殺技は方向なし・下・前で変わる。技の一覧は対戦中の <kbd>II</kbd> で見られるよ</p>
         </div>
       </div>
-      <div class="panel-buttons"><button class="action" type="button" id="btn-howto-close">閉じる</button></div>
+      <div class="panel-buttons">
+        <button class="action" type="button" id="btn-howto-guide">操作ガイドで試す</button>
+        <button class="action sub" type="button" id="btn-howto-close">閉じる</button>
+      </div>
     </div>
   </div>
 

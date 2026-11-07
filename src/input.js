@@ -25,6 +25,8 @@ export class InputManager {
     this.touchDir = 0;
     this.touchBtn = 0;
     this.touchTap = 0;
+    this.touchGuard = false;
+    this.backBit = 0;  // 相手と反対の方向。ガードボタンで使うので画面側が毎コマ入れる
     this.onPause = null;
     this.padPauseHeld = false;
     window.addEventListener('keydown', (e) => {
@@ -47,6 +49,7 @@ export class InputManager {
       this.touchTap = 0;
       this.touchDir = 0;
       this.touchBtn = 0;
+      this.touchGuard = false;
     });
   }
 
@@ -93,6 +96,7 @@ export class InputManager {
       m |= this.keyMask(KEYMAP_P1) | this.touchDir | this.touchBtn | this.touchTap;
       this.touchTap = 0;
       if (solo) m |= this.keyMask(KEYMAP_P2);
+      if (this.touchGuard) m = (m & ~(BTN.L | BTN.R)) | this.backBit;
     } else {
       m |= this.keyMask(KEYMAP_P2);
     }
@@ -116,8 +120,9 @@ export class InputManager {
       let m = 0;
       if (d > 15) {
         const ang = Math.atan2(dy, dx) * 180 / Math.PI;
-        if (ang > -157.5 && ang < -22.5) m |= d > 22 ? BTN.U : 0;
-        if (ang > 22.5 && ang < 157.5) m |= BTN.D;
+        // 歩いているつもりで飛んだりしゃがんだりしないよう、上下の範囲は狭めにする
+        if (ang > -135 && ang < -45) m |= d > 22 ? BTN.U : 0;
+        if (ang > 45 && ang < 135) m |= BTN.D;
         if (ang > -67.5 && ang < 67.5) m |= BTN.R;
         if (ang > 112.5 || ang < -112.5) m |= BTN.L;
       }
@@ -132,7 +137,7 @@ export class InputManager {
       const rect = zone.getBoundingClientRect();
       cx = e.clientX;
       cy = e.clientY;
-      base.style.left = `${cx - rect.left}px`;
+      base.style.left = `${Math.max(62, cx - rect.left)}px`; // 説明の文字が画面の外に出ないように
       base.style.top = `${cy - rect.top}px`;
       base.classList.add('active');
       moveKnob(0, 0);
@@ -146,6 +151,8 @@ export class InputManager {
       stickId = null;
       this.touchDir = 0;
       knob.style.transform = '';
+      base.style.left = '';
+      base.style.top = '';
       base.classList.remove('active');
     };
     zone.addEventListener('pointerup', endStick);
@@ -167,5 +174,19 @@ export class InputManager {
       el.addEventListener('pointerup', release);
       el.addEventListener('pointercancel', release);
     });
+
+    const guard = root.querySelector('[data-guard]');
+    const releaseGuard = () => {
+      this.touchGuard = false;
+      guard.classList.remove('down');
+    };
+    guard.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      try { guard.setPointerCapture(e.pointerId); } catch { /* 捕捉できなくても押下は有効 */ }
+      this.touchGuard = true;
+      guard.classList.add('down');
+    });
+    guard.addEventListener('pointerup', releaseGuard);
+    guard.addEventListener('pointercancel', releaseGuard);
   }
 }

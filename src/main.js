@@ -1,11 +1,11 @@
 // 画面遷移とゲームループ。
 import { CHARS, CHAR_IDS, SPECIAL_COMMANDS } from './characters.js';
-import { createMatch, step } from './sim.js';
+import { createMatch, step, moveOf } from './sim.js';
 import { createCpu, dummyInput } from './ai.js';
 import { InputManager } from './input.js';
 import { Renderer, paintFighter } from './render.js';
 import { POSES } from './poses.js';
-import { GROUND_Y, VIEW_W, VIEW_H, MAX_VIEW_W } from './config.js';
+import { GROUND_Y, VIEW_W, VIEW_H, MAX_VIEW_W, BTN } from './config.js';
 import { unlockAudio, playSound, isMuted, setMuted } from './audio.js';
 import { RollbackSession } from './rollback.js';
 import { OnlineLink, makeRoomCode, normalizeRoomCode, onlineAvailable } from './net.js';
@@ -32,7 +32,11 @@ const app = {
   resultShown: false,
   matchCount: 0,
   net: null,       // { link, host, session, myPick, peerPick, generation, wantRematch, peerRematch, started }
+  guide: null,     // { i, hold, wait, savedDummy, ending }
 };
+
+// この端末の自分が何番目のキャラか。オンラインで部屋に入った側は 1
+const myIdx = () => (app.net && app.net.session && !app.net.host ? 1 : 0);
 
 const NET_DELAY = 2;
 const NET_TIMEOUT_MS = 8000;
@@ -165,9 +169,127 @@ function startMatch() {
   $('#training-tools').hidden = app.mode !== 'training';
   show('#screen-battle');
   fitCanvas();
+  stopGuide();
+  if (app.mode === 'training' && !guideSeen()) startGuide();
   if (!app.running) {
     app.running = true;
     requestAnimationFrame(frame);
+  }
+}
+
+/* ---------- 操作ガイド（練習モード） ---------- */
+
+const GUIDE_STEPS = [
+  {
+    title: '歩く', touch: '左のスティックを、相手のいる方へ倒そう', keys: 'A か D で、相手のいる方へ歩こう', hint: '#stick-base',
+    done: (s, p, g) => {
+      g.hold = (p.st === 'walk' || p.st === 'dash') && p.vx * p.facing > 0 ? g.hold + 1 : 0;
+      return g.hold >= 15;
+    },
+  },
+  {
+    title: 'ジャンプ', touch: '「ジャンプ」ボタンを押そう（スティックを上に倒してもOK）', keys: 'W を押そう', hint: '[data-btn="U"]',
+    done: (s, p) => p.st === 'air',
+  },
+  {
+    title: 'しゃがむ', touch: 'スティックを下に倒したままにしよう', keys: 'S を押したままにしよう', hint: '#stick-base',
+    done: (s, p, g) => {
+      g.hold = p.st === 'crouch' ? g.hold + 1 : 0;
+      return g.hold >= 12;
+    },
+  },
+  {
+    title: 'ガード', touch: '相手が攻撃してくるよ。「ガード」ボタンを押し続けて防ごう', keys: '相手が攻撃してくるよ。相手と反対の方向（A か D）を押し続けて防ごう', hint: '[data-guard]', dummy: 'attack',
+    done: (s) => s.events.some((e) => e.t === 'block' && e.by === 1),
+  },
+  {
+    title: '攻撃', touch: '近づいて「弱」を押し、相手に当てよう', keys: '近づいて J を押し、相手に当てよう', hint: '[data-btn="A"]',
+    done: (s) => s.events.some((e) => e.t === 'hit' && e.by === 0),
+  },
+  {
+    title: 'コンボ', touch: '近づいて「弱→中→強」と順に押し、3回つなげよう', keys: '近づいて J→K→L と順に押し、3回つなげよう', hint: '[data-btn="B"], [data-btn="C"], [data-btn="A"]',
+    done: (s) => s.events.some((e) => e.t === 'hit' && e.by === 0 && e.hits >= 3),
+  },
+  {
+    title: '必殺技', touch: '「必殺」を押そう。コンボの最後につなげると強いよ', keys: 'U を押そう。コンボの最後につなげると強いよ', hint: '[data-btn="S"]',
+    done: (s, p) => p.st === 'attack' && moveOf(p) && moveOf(p).rank === 4,
+  },
+];
+
+function guideSeen() {
+  try { return localStorage.getItem('rengeki-guide') === 'done'; } catch { return false; }
+}
+
+function markGuideSeen() {
+  try { localStorage.setItem('rengeki-guide', 'done'); } catch { /* 保存できなくても遊べる */ }
+}
+
+function setGuideHint(sel) {
+  document.querySelectorAll('.guide-hint').forEach((el) => el.classList.remove('guide-hint'));
+  if (sel) document.querySelectorAll(sel).forEach((el) => el.classList.add('guide-hint'));
+}
+
+function showGuideStep() {
+  const g = app.guide;
+  const stepDef = GUIDE_STEPS[g.i];
+  const touch = window.matchMedia('(pointer: coarse)').matches;
+  $('#guide-count').textContent = `${g.i + 1} / ${GUIDE_STEPS.length}`;
+  $('#guide-title').textContent = stepDef.title;
+  $('#guide-text').textContent = touch ? stepDef.touch : stepDef.keys;
+  $('#guide').classList.remove('ok');
+  setGuideHint(stepDef.hint);
+  app.dummy = stepDef.dummy || 'stand';
+  g.hold = 0;
+  g.wait = 0;
+}
+
+function startGuide() {
+  stopGuide();
+  app.guide = { i: 0, hold: 0, wait: 0, savedDummy: app.dummy, ending: false };
+  $('#guide').hidden = false;
+  $('#guide-skip').textContent = 'ガイドを終わる';
+  showGuideStep();
+}
+
+function stopGuide() {
+  if (!app.guide) return;
+  app.dummy = app.guide.savedDummy;
+  app.guide = null;
+  setGuideHint(null);
+  $('#guide').hidden = true;
+}
+
+function guideTick(s) {
+  const g = app.guide;
+  if (g.ending) {
+    if (--g.wait <= 0) stopGuide();
+    return;
+  }
+  if (g.wait > 0) {
+    if (--g.wait === 0) {
+      g.i++;
+      if (g.i < GUIDE_STEPS.length) {
+        showGuideStep();
+      } else {
+        markGuideSeen();
+        g.ending = true;
+        g.wait = 360;
+        app.dummy = g.savedDummy;
+        $('#guide').classList.remove('ok');
+        $('#guide-count').textContent = '完了';
+        $('#guide-title').textContent = 'これで基本はOK！';
+        $('#guide-text').textContent = '技の出し方は「II」で見られるよ。自由に練習してね';
+        $('#guide-skip').textContent = '閉じる';
+      }
+    }
+    return;
+  }
+  if (s.phase === 'fight' && GUIDE_STEPS[g.i].done(s, s.ps[0], g)) {
+    g.wait = 40;
+    playSound('ui');
+    $('#guide').classList.add('ok');
+    $('#guide-title').textContent = `${GUIDE_STEPS[g.i].title} OK！`;
+    setGuideHint(null);
   }
 }
 
@@ -211,7 +333,7 @@ function runFrame(now) {
     app.last = now;
     if (!app.match) return;
     renderer.draw(app.match, { hitboxes: false, note: netNote() });
-    updateSuperButton(app.match);
+    updateControls(app.match);
     return;
   }
   const s = app.match;
@@ -224,6 +346,7 @@ function runFrame(now) {
     while (app.acc >= stepMs && safety++ < 5) {
       const inputs = [app.controllers[0](s), app.controllers[1](s)];
       step(s, inputs);
+      if (app.guide) guideTick(s);
       renderer.consume(s.events, s);
       renderer.tick(s);
       app.acc -= stepMs;
@@ -232,13 +355,25 @@ function runFrame(now) {
   }
   app.last = now;
   renderer.draw(s, { hitboxes: app.hitboxes });
-  updateSuperButton(s);
+  updateControls(s);
 }
 
-function updateSuperButton(s) {
-  const ready = s.ps[0].meter >= 100;
+// 超ボタンの光り方と、スティックの左右の説明を今の状況に合わせる
+function updateControls(s) {
+  const idx = myIdx();
+  const me = s.ps[idx];
+  const op = s.ps[1 - idx];
+  const ready = me.meter >= 100;
   const el = $('#btn-super');
   if (el.classList.contains('ready') !== ready) el.classList.toggle('ready', ready);
+  const opOnRight = op.x > me.x;
+  input.backBit = opOnRight ? BTN.L : BTN.R;
+  const left = opOnRight ? 'ガード' : '前へ';
+  const right = opOnRight ? '前へ' : 'ガード';
+  if ($('#stick-left').textContent !== left) {
+    $('#stick-left').textContent = left;
+    $('#stick-right').textContent = right;
+  }
 }
 
 function showResult(s) {
@@ -500,7 +635,7 @@ function leaveOnline() {
 function fillMoveList() {
   const box = $('#movelist');
   box.textContent = '';
-  const ch = CHARS[app.match.ps[0].char];
+  const ch = CHARS[app.match.ps[myIdx()].char];
   const rows = SPECIAL_COMMANDS.map(([id, simple, motion]) => [ch.moves[id].name, simple, motion]);
   rows.forEach(([name, simple, motion]) => {
     const tr = document.createElement('tr');
@@ -515,6 +650,7 @@ function fillMoveList() {
 }
 
 function quitToTitle() {
+  stopGuide();
   leaveOnline();
   app.match = null;
   app.paused = false;
@@ -629,6 +765,21 @@ bind('#btn-reselect', () => {
 bind('#btn-result-quit', () => quitToTitle());
 bind('#btn-howto', () => { $('#howto').hidden = false; });
 bind('#btn-howto-close', () => { $('#howto').hidden = true; });
+bind('#btn-howto-guide', () => {
+  $('#howto').hidden = true;
+  app.mode = 'training';
+  app.picks = ['kagari', 'goutetsu'];
+  startMatch();
+  startGuide();
+});
+bind('#btn-guide', () => {
+  togglePause(false);
+  startGuide();
+});
+bind('#guide-skip', () => {
+  markGuideSeen();
+  stopGuide();
+});
 bind('#btn-rotate-skip', () => { document.body.classList.add('rotate-skip'); });
 
 $('#btn-sound').addEventListener('click', () => {

@@ -120,10 +120,15 @@ export function createCpu(levelName = 'normal', seed = 12345) {
   };
 }
 
-// 練習モードの相手。mode: stand / block / crouch / jump
+// 練習モードの相手。mode: stand / block / crouch / jump / attack
 export function dummyInput(s, idx, mode) {
   const me = s.ps[idx];
   const op = s.ps[1 - idx];
+  if (mode === 'attack') {
+    // ガードの練習用。近づいて、ゆっくり一定の間隔で弱攻撃を出す
+    if (Math.abs(me.x - op.x) > 105) return op.x > me.x ? BTN.R : BTN.L;
+    return s.t % 80 === 0 ? BTN.A : 0;
+  }
   if (mode === 'crouch') return BTN.D;
   if (mode === 'jump') return me.st === 'idle' ? BTN.U : 0;
   if (mode === 'block') {
