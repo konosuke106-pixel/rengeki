@@ -58,7 +58,7 @@ const walkMix = clonePose(POSES.idle);
 export function targetPose(p, move) {
   switch (p.st) {
     case 'walk': {
-      const phase = 0.5 + 0.5 * Math.sin(p.f * 0.26);
+      const phase = 0.5 + 0.5 * Math.sin(p.f * 0.36);
       walkMix.t = POSES.walkA.t;
       for (const key of ['af', 'ab', 'lf', 'lb']) {
         walkMix[key][0] = lerpVal(POSES.walkA[key][0], POSES.walkB[key][0], phase);

@@ -128,7 +128,7 @@ const shizukuMoves = {
 export const CHARS = {
   kagari: {
     id: 'kagari', name: 'カガリ', kana: '火', title: '火の拳士', style: '飛び道具と昇炎で攻守が揃う基本形',
-    hp: 1000, w: 62, h: 186, walk: 4.4, back: 3.3, jump: 19, jumpVx: 5, dash: 11, dashF: 14,
+    hp: 1000, w: 62, h: 186, walk: 6, back: 4.6, jump: 19, jumpVx: 6.5, dash: 15, dashF: 14,
     build: 1, stats: { 攻撃: 3, 速度: 3, 体力: 3 }, stage: 'sunset',
     palettes: [
       { gi: '#d9391f', dark: '#8f1d10', trim: '#f6c445', skin: '#e9b48a', hair: '#1a1420' },
@@ -138,7 +138,7 @@ export const CHARS = {
   },
   goutetsu: {
     id: 'goutetsu', name: 'ゴウテツ', kana: '鉄', title: '鉄腕の組み手', style: '遅いが一撃が重い。掴みと耐久で押し切る',
-    hp: 1150, w: 78, h: 196, walk: 3.1, back: 2.5, jump: 17.5, jumpVx: 4, dash: 9, dashF: 16,
+    hp: 1150, w: 78, h: 196, walk: 4.4, back: 3.4, jump: 17.5, jumpVx: 5.2, dash: 12, dashF: 16,
     build: 1.38, stats: { 攻撃: 5, 速度: 1, 体力: 5 }, stage: 'foundry',
     palettes: [
       { gi: '#3f5a5c', dark: '#223536', trim: '#e7a321', skin: '#c98d62', hair: '#2a2320' },
@@ -148,7 +148,7 @@ export const CHARS = {
   },
   shizuku: {
     id: 'shizuku', name: 'シズク', kana: '雫', title: '水の舞手', style: '火力は低いが速い。二段跳びと瞬歩で崩す',
-    hp: 900, w: 54, h: 178, walk: 5.2, back: 4.2, jump: 19.5, jumpVx: 5.8, dash: 14, dashF: 12,
+    hp: 900, w: 54, h: 178, walk: 7.2, back: 5.6, jump: 19.5, jumpVx: 7.6, dash: 18, dashF: 12,
     build: 0.82, airJumps: 1, lChain: 3, stats: { 攻撃: 2, 速度: 5, 体力: 2 }, stage: 'rain',
     palettes: [
       { gi: '#10a39a', dark: '#086660', trim: '#f4f0df', skin: '#f0c9a4', hair: '#20285e' },
