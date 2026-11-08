@@ -1,11 +1,67 @@
 <!doctype html>
-<!-- ホーム画面アイコンの元絵。tools/make-icons.ps1 で PNG にする -->
+<!-- ホーム画面アイコンの元絵。ゲームのキャラ描画をそのまま使う。tools/make-icons.ps1 で PNG にする -->
 <html lang="ja"><head><meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&text=%E9%80%A3&display=block">
 <style>
   html, body { margin: 0; width: 100vw; height: 100vh; overflow: hidden; background: #e4552a; }
-  .sun { position: absolute; left: 50%; top: 50%; width: 72vmin; height: 72vmin; margin: -36vmin 0 0 -36vmin; border-radius: 50%; background: #f6c445; }
-  .ground { position: absolute; left: 0; right: 0; bottom: 0; height: 22vmin; background: #15101c; clip-path: polygon(0 45%, 18% 15%, 34% 50%, 55% 0, 74% 45%, 88% 20%, 100% 50%, 100% 100%, 0 100%); }
-  .mark { position: absolute; inset: 0; display: grid; place-items: center; font: 400 56vmin/1 "Dela Gothic One", sans-serif; color: #15101c; }
+  canvas { display: block; width: 100vw; height: 100vh; }
 </style></head>
-<body><div class="sun"></div><div class="ground"></div><div class="mark">連</div></body></html>
+<body><canvas id="c" width="1024" height="1024"></canvas>
+<script type="module">
+import { CHARS } from '../src/characters.js';
+import { POSES } from '../src/poses.js';
+import { paintFighter } from '../src/render.js';
+
+const params = new URLSearchParams(location.search);
+const id = params.get('char') || 'kagari';
+const pose = POSES[params.get('pose') || 'heavy'];
+const ch = CHARS[id];
+const pal = ch.palettes[0];
+const ctx = document.getElementById('c').getContext('2d');
+const S = 1024;
+
+// 夕焼けの空
+const sky = ctx.createLinearGradient(0, 0, 0, S);
+sky.addColorStop(0, '#2a1840');
+sky.addColorStop(0.55, '#7a2c4a');
+sky.addColorStop(1, '#e07a3a');
+ctx.fillStyle = sky;
+ctx.fillRect(0, 0, S, S);
+
+// 太陽
+ctx.fillStyle = '#f6c445';
+ctx.beginPath();
+ctx.arc(S * 0.5, S * 0.47, S * 0.33, 0, Math.PI * 2);
+ctx.fill();
+
+// 速さの線
+ctx.strokeStyle = 'rgba(255, 240, 210, 0.55)';
+ctx.lineCap = 'round';
+for (const [y, x0, x1, w] of [[0.36, 0.06, 0.3, 14], [0.46, 0.02, 0.22, 10], [0.56, 0.08, 0.26, 12]]) {
+  ctx.lineWidth = w;
+  ctx.beginPath();
+  ctx.moveTo(S * x0, S * y);
+  ctx.lineTo(S * x1, S * y);
+  ctx.stroke();
+}
+
+// 遠くの山と地面
+ctx.fillStyle = '#15101c';
+ctx.beginPath();
+ctx.moveTo(0, S * 0.86);
+for (const [x, y] of [[0.14, 0.8], [0.28, 0.85], [0.46, 0.79], [0.66, 0.86], [0.86, 0.8], [1, 0.85]]) ctx.lineTo(S * x, S * y);
+ctx.lineTo(S, S);
+ctx.lineTo(0, S);
+ctx.fill();
+
+// キャラ（ゲームと同じ描き方）
+// 足元の地面（足が山に埋もれないよう、少し明るい帯を敷く）
+ctx.fillStyle = '#2c2034';
+ctx.fillRect(0, S * 0.9, S, S * 0.1);
+const scale = Number(params.get('scale') || 2.45);
+ctx.save();
+ctx.translate(S * Number(params.get('x') || 0.47), S * 0.905);
+ctx.scale(scale, scale);
+paintFighter(ctx, ch, pal, pose, 0, 0, 1, { clock: 10 });
+ctx.restore();
+document.title = 'ready';
+</script></body></html>

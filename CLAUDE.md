@@ -37,7 +37,7 @@
 - スマホ横向きの全画面対応：16:9より細長い画面はステージを左右に広げて描く（`render.js` の `extraX`、見た目だけで戦闘には影響なし）。Androidなどは横向きで画面に触ると自動で全画面に入る。iPhone の Safari は全画面の機能がないので、ホーム画面に追加して開く案内を出す（`manifest.webmanifest`）
 - 操作の分かりやすさ：タッチに「ジャンプ」「ガード」ボタンとスティックの方向説明を追加。練習モードの初回に7段階の操作ガイド（`main.js` の `GUIDE_STEPS`、一時停止からやり直せる）。練習の相手に「攻撃してくる」を追加
 - フリックでダッシュ：スティックを素早くはじくと「同じ方向に2回」の入力を流す（`input.js` の `flickBit`、判定の数値は `FLICK_*`）。後ろダッシュの無敵を7→12コマ、硬直中のダッシュ入力の猶予を3→8コマに
-- ホーム画面アイコン：`tools/icon.html` が元絵。`tools/make-icons.ps1` で `icon-180/192/512.png` を作る
+- ホーム画面アイコン：夕日を背にカガリが拳を突き出す絵。`tools/icon.html` が元絵で、ゲームの `paintFighter` をそのまま使う（`?char=&pose=&scale=&x=` で変えられる）。`tools/make-icons.ps1` が一時サーバーを立てて Edge で撮り、`icon-180/192/512.png` を作る（`-Preview` で確認用だけ）
 
 ## 公開先
 - 本番：https://konosuke106-pixel.github.io/rengeki/
