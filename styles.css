@@ -36,7 +36,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px s
   overflow: hidden;
 }
 #screen-title[hidden] { display: none; }
-.title-art { position: relative; min-width: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; padding-left: max(5vw, env(safe-area-inset-left, 0px)); }
+.title-art { position: relative; min-width: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-start; padding-top: 5vh; padding-left: max(5vw, env(safe-area-inset-left, 0px)); }
+/* 山の上に並ぶキャラたち（main.js の drawTitleCast が描く） */
+#title-cast { position: absolute; left: 0; bottom: 0; width: 100%; height: 58%; pointer-events: none; }
 .title-sun {
   position: absolute; width: 110vh; height: 110vh; border-radius: 50%;
   background: var(--gold); left: -14vh; top: -8vh;

@@ -858,8 +858,56 @@ window.addEventListener('contextmenu', (e) => {
 input.onPause = () => togglePause();
 input.bindTouch($('#touch'));
 
+/* ---------- タイトルに並ぶキャラ ---------- */
+
+// [キャラ, 横の位置(0〜1), 奥行き(1=手前), ポーズ, 地面からの高さ(背の何倍)]
+const TITLE_CAST = [
+  ['goutetsu', 0.1, 0.8, 'idle', 0],
+  ['shizuku', 0.33, 0.78, 'cast', 0],
+  ['kage', 0.67, 0.8, 'parry', 0],
+  ['kogarashi', 0.9, 0.82, 'castW', 0],
+  ['rai', 0.22, 1, 'idle', 0],
+  ['kagari', 0.5, 1.12, 'heavy', 0],
+  ['hayate', 0.78, 1, 'jump', 0.18],
+];
+let titleClock = 0;
+
+function drawTitleCast() {
+  const cv = $('#title-cast');
+  if (!cv || document.body.dataset.screen !== 'title') return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.round(cv.clientWidth * dpr);
+  const h = Math.round(cv.clientHeight * dpr);
+  if (!w || !h) return;
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  // 背の高さを画面の高さに合わせる。横に詰まる時は少し小さく
+  const unit = Math.min(h * 0.0027, w * 0.00135);
+  const ground = h * 0.93;
+  for (const [id, fx, depth, poseName, lift] of TITLE_CAST) {
+    const ch = CHARS[id];
+    const k = unit * depth;
+    const x = w * (0.06 + fx * 0.88);
+    const facing = fx <= 0.5 ? 1 : -1;
+    const bob = Math.sin(titleClock * 0.05 + fx * 9) * 2;
+    ctx.save();
+    ctx.translate(x, ground - lift * h - (depth < 1 ? h * 0.05 : 0) + bob);
+    ctx.scale(k, k);
+    paintFighter(ctx, ch, ch.palettes[0], POSES[poseName], 0, 0, facing, { clock: titleClock, vx: id === 'hayate' ? 6 * facing : 0 });
+    ctx.restore();
+  }
+}
+
+function titleLoop() {
+  titleClock++;
+  if (titleClock % 2 === 0) drawTitleCast();
+  requestAnimationFrame(titleLoop);
+}
+
 buildSelect();
 show('#screen-title');
+requestAnimationFrame(titleLoop);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(buildSelect);
 
 // 動作確認用の窓口（ゲームの挙動には影響しない）
