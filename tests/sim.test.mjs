@@ -57,13 +57,16 @@ function hitWith(s, mask, maxWait = 40) {
   return s.ps[0].stats.hits > before;
 }
 
+// コンボの締めに使う必殺技。コガラシの「下＋必殺」は罠を置く技なので、前＋必殺で締める
+const COMBO_ENDER = { kogarashi: BTN.R | BTN.S };
+
 test('全キャラ：弱→中→強→必殺の地上コンボがつながる', () => {
   for (const id of CHAR_IDS) {
     const s = ready(id, 'kagari');
     assert.ok(hitWith(s, BTN.A), `${id} 弱`);
     assert.ok(hitWith(s, BTN.B), `${id} 中`);
     assert.ok(hitWith(s, BTN.C), `${id} 強`);
-    assert.ok(hitWith(s, BTN.D | BTN.S), `${id} 必殺`);
+    assert.ok(hitWith(s, COMBO_ENDER[id] || BTN.D | BTN.S), `${id} 必殺`);
     assert.ok(s.ps[0].stats.maxCombo >= 4, `${id} 最大コンボ ${s.ps[0].stats.maxCombo}`);
     assert.ok(s.ps[0].stats.dmg >= 150, `${id} 総ダメージ ${s.ps[0].stats.dmg}`);
   }

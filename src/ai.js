@@ -11,6 +11,23 @@ const LEVELS = {
 
 const COMBO_ORDER = [BTN.A, BTN.B, BTN.C, BTN.S];
 
+// キャラごとの得意技（characters.js の cpu）を、押すボタンに直す
+function specialInput(key, fwd) {
+  if (key === 'spD') return BTN.S | BTN.D;
+  if (key === 'spF') return BTN.S | fwd;
+  if (key === 'cH') return BTN.C | BTN.D;
+  return BTN.S;
+}
+
+// 飛び道具・罠を出してよいか（1つだけの物はもう出ていない時、罠は上限まで）
+function canZone(s, idx, move) {
+  if (!move || !move.spawn) return false;
+  const mine = s.projs.filter((q) => q.owner === idx);
+  if (move.oneProj) return mine.length === 0;
+  const sp = move.spawn[0];
+  return !sp.max || mine.filter((q) => q.kind === sp.kind).length < sp.max;
+}
+
 export function createCpu(levelName = 'normal', seed = 12345) {
   const lv = LEVELS[levelName] || LEVELS.normal;
   let rng = seed >>> 0 || 1;
@@ -34,6 +51,8 @@ export function createCpu(levelName = 'normal', seed = 12345) {
     const dist = Math.abs(me.x - op.x);
     const fwd = op.x > me.x ? BTN.R : BTN.L;
     const back = op.x > me.x ? BTN.L : BTN.R;
+    const ch = CHARS[me.char];
+    const plan = ch.cpu || { antiAir: 'spD', zone: 'spN' };
     press = 0;
     if (holdT > 0) holdT--; else hold = 0;
     if (wait > 0) wait--;
@@ -68,6 +87,11 @@ export function createCpu(levelName = 'normal', seed = 12345) {
     const opMove = moveOf(op);
     const threat = (op.st === 'attack' && dist < 330) || s.projs.some((q) => q.owner !== idx && Math.abs(q.x - me.x) < 260);
     if (threat && (me.st === 'idle' || me.st === 'walk' || me.st === 'crouch' || me.st === 'block')) {
+      // 当て身を持つキャラは、ときどき構えで受け流す
+      if (plan.parry && me.st !== 'block' && op.st === 'attack' && op.f < 5 && rand() < lv.block / 5) {
+        wait = lv.react;
+        return BTN.S;
+      }
       if (me.st === 'block' || rand() < lv.block / 6) {
         const firstBox = opMove && opMove.boxes[0];
         const low = firstBox ? firstBox.lv === 'l' : false;
@@ -80,13 +104,15 @@ export function createCpu(levelName = 'normal', seed = 12345) {
 
     if (wait > 0 || (me.st !== 'idle' && me.st !== 'walk' && me.st !== 'crouch')) {
       if (me.st === 'air' && dist < 150 && op.y < me.y + 60 && rand() < 0.12) return BTN.B | hold;
+      // 空から急降下（届きそうな距離で落ち始めたら）
+      if (plan.dive && me.st === 'air' && op.y === 0 && me.vy < 4 && me.y > 80 && dist < me.y * 1.3 + 60 && rand() < 0.15 * lv.aggression) return BTN.S;
       return hold;
     }
 
     // 飛び込みへの対空
     if (op.y > 40 && dist < 220 && op.vy < 4 && rand() < lv.antiAir / 3) {
       wait = lv.react;
-      return BTN.S | BTN.D;
+      return specialInput(plan.antiAir, fwd);
     }
 
     const r = rand();
@@ -113,7 +139,9 @@ export function createCpu(levelName = 'normal', seed = 12345) {
       hold = back; holdT = 14;
       return hold;
     }
-    if (r < 0.2 && CHARS[me.char].moves.spN.spawn && !s.projs.some((q) => q.owner === idx)) return BTN.S;
+    if (r < 0.2 && canZone(s, idx, ch.moves[plan.zone])) return specialInput(plan.zone, fwd);
+    if (r < 0.28 && plan.zone !== 'spN' && canZone(s, idx, ch.moves.spN)) return BTN.S;
+    if (r < 0.32 && ch.moves.spF.warp) return BTN.S | fwd;
     if (r < 0.75) { hold = fwd; holdT = 22; return hold; }
     if (r < 0.88) { hold = BTN.U | fwd; holdT = 3; return hold; }
     return 0;

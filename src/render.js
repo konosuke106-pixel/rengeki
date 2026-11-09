@@ -1,7 +1,7 @@
 // 画面描画。戦闘の結果には一切影響しない（見た目だけの担当）。
 import { VIEW_W, VIEW_H, MAX_VIEW_W, GROUND_Y, STAGE_HALF, METER_MAX, SUPER_COST } from './config.js';
 import { CHARS } from './characters.js';
-import { moveOf, activeBoxes, hurtboxOf } from './sim.js';
+import { moveOf, activeBoxes, hurtboxOf, moveInvincible } from './sim.js';
 import { POSES, clonePose, blendPose, targetPose } from './poses.js';
 import { playSound } from './audio.js';
 
@@ -25,6 +25,22 @@ const STAGES = {
   rain: {
     sky: ['#12163c', '#1f2864', '#374796', '#7083c8'], sun: '#e4eaff', sunXY: [930, 170], sunR: 96,
     far: '#1b2157', near: '#0e1136', floor: '#0b0d2a', floorLine: '#2a3380', name: '雨の社', rain: true, torii: true,
+  },
+  storm: {
+    sky: ['#1d1b33', '#2c2a4f', '#4a4472', '#7a6f98'], sun: '#d8d4ff', sunXY: [300, 150], sunR: 60,
+    far: '#2a2645', near: '#171528', floor: '#141224', floorLine: '#3c3866', name: '雷雲の頂', rain: true, storm: true, clouds: true,
+  },
+  bamboo: {
+    sky: ['#e9d9a6', '#cfc58a', '#9fb07a', '#6f8f5f'], sun: '#fff3c8', sunXY: [300, 200], sunR: 110,
+    far: '#5d7d4e', near: '#2f4a2c', floor: '#26341f', floorLine: '#45603a', name: '竹林の道', bamboo: true,
+  },
+  moonroof: {
+    sky: ['#1c2448', '#2b376a', '#43548e', '#6a7bb0'], sun: '#f4ecd0', sunXY: [900, 170], sunR: 120,
+    far: '#2a3360', near: '#161c3a', floor: '#2b3157', floorLine: '#4a548c', name: '月夜の屋根', roofs: true,
+  },
+  snow: {
+    sky: ['#c9d9e8', '#aac3da', '#8aa9c8', '#6c8db3'], sun: '#ffffff', sunXY: [380, 260], sunR: 90,
+    far: '#7d9cc0', near: '#e8f1f8', floor: '#dfeaf3', floorLine: '#a9c2d8', name: '雪原', snow: true,
   },
 };
 
@@ -75,6 +91,16 @@ function buildStage(id) {
     ctx.beginPath();
     ctx.arc(st.sunXY[0] + SKY_PAD, st.sunXY[1], st.sunR, 0, Math.PI * 2);
     ctx.fill();
+    if (st.clouds) {
+      // 重い雷雲
+      const r = seeded(41);
+      for (let i = 0; i < 26; i++) {
+        ctx.fillStyle = i % 3 ? '#252240' : '#34305a';
+        ctx.beginPath();
+        ctx.ellipse(r() * MAX_VIEW_W, 40 + r() * 170, 120 + r() * 160, 40 + r() * 30, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     // 紙の質感
     const r = seeded(7);
     ctx.fillStyle = 'rgba(21,16,28,.05)';
@@ -95,6 +121,44 @@ function buildStage(id) {
       ctx.fillRect(1000, 410, 340, 170);
       ctx.fillStyle = '#e4842b';
       for (let i = 0; i < 5; i++) ctx.fillRect(1024 + i * 62, 450, 34, 44);
+    }
+    if (st.bamboo) {
+      // 竹の幹と節。手前ほど濃く太い
+      const r = seeded(17);
+      for (let i = 0; i < 46; i++) {
+        const x = r() * 2700;
+        const w = 12 + r() * 16;
+        ctx.fillStyle = i % 4 ? st.near : '#3f6238';
+        ctx.fillRect(x, 0, w, 600);
+        ctx.fillStyle = '#1d2f1b';
+        for (let y = 40 + r() * 60; y < 560; y += 90 + r() * 40) ctx.fillRect(x - 2, y, w + 4, 5);
+      }
+    }
+    if (st.roofs) {
+      // 瓦屋根の並びと五重塔
+      ctx.fillStyle = st.near;
+      [[0, 470], [420, 500], [860, 455], [1500, 490], [1960, 460], [2380, 500]].forEach(([x, y]) => {
+        ctx.beginPath();
+        ctx.moveTo(x - 30, 600);
+        ctx.lineTo(x - 30, y + 30);
+        ctx.quadraticCurveTo(x + 40, y + 20, x + 90, y);
+        ctx.lineTo(x + 280, y);
+        ctx.quadraticCurveTo(x + 330, y + 20, x + 400, y + 30);
+        ctx.lineTo(x + 400, 600);
+        ctx.fill();
+      });
+      for (let i = 0; i < 5; i++) {
+        const w = 170 - i * 24;
+        const y = 470 - i * 62;
+        ctx.fillRect(1260 - w * 0.25, y - 40, w * 0.5, 60);
+        ctx.beginPath();
+        ctx.moveTo(1260 - w * 0.7, y - 30);
+        ctx.quadraticCurveTo(1260, y - 60, 1260 + w * 0.7, y - 30);
+        ctx.lineTo(1260 + w * 0.4, y - 48);
+        ctx.lineTo(1260 - w * 0.4, y - 48);
+        ctx.fill();
+      }
+      ctx.fillRect(1256, 120, 8, 60);
     }
     if (st.torii) {
       ctx.fillStyle = st.near;
@@ -173,6 +237,7 @@ export class Renderer {
     this.superCut = null;
     this.clock = 0;
     this.rainDrops = null;
+    this.snowFlakes = null;
   }
 
   setStage(id) {
@@ -231,6 +296,20 @@ export class Renderer {
           playSound('armor');
           this.spark(e.x, sy, 14, '#ffd983', 10);
           this.pushText('耐えた', e.x, sy - 40, '#ffd983', 34, -0.05);
+          break;
+        case 'parry':
+          playSound('armor');
+          this.flash = Math.max(this.flash, 0.25);
+          this.spark(e.x, sy, 18, '#d9b3ff', 11);
+          this.rings.push({ x: e.x, y: sy, r: 10, max: 90, life: 1, color: '#d9b3ff' });
+          this.pushText('受け流し', e.x, sy - 50, '#d9b3ff', 40, 0);
+          break;
+        case 'warp':
+          playSound('dash');
+          for (const wx of [e.x, e.to]) {
+            this.dust(wx, 10);
+            this.spark(wx, GROUND_Y - 100, 8, '#e8e2c8', 6);
+          }
           break;
         case 'clash':
           playSound('tech');
@@ -425,6 +504,21 @@ export class Renderer {
       }
       ctx.stroke();
     }
+    if (st.def.storm && Math.random() < 0.004) this.flash = Math.max(this.flash, 0.3);
+    if (st.def.snow) {
+      if (!this.snowFlakes) {
+        const r = seeded(77);
+        this.snowFlakes = Array.from({ length: 110 }, () => ({ x: r() * MAX_VIEW_W - SKY_PAD, y: r() * VIEW_H, v: 1 + r() * 2, s: 2 + r() * 4, p: r() * 6 }));
+      }
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      for (const f of this.snowFlakes) {
+        f.y += f.v;
+        f.x += Math.sin(this.clock * 0.03 + f.p) * 0.8 - 0.4;
+        if (f.y > VIEW_H) { f.y = -10; f.x = Math.random() * MAX_VIEW_W - SKY_PAD; }
+        if (f.x < -SKY_PAD) f.x += MAX_VIEW_W;
+        ctx.fillRect(f.x, f.y, f.s, f.s);
+      }
+    }
     if (s.freeze > 0) {
       ctx.fillStyle = 'rgba(21,16,28,.62)';
       this.fillView();
@@ -446,7 +540,7 @@ export class Renderer {
     const pose = this.poses[i];
     const whiteFlash = p.hitstop > 0 && (p.st === 'hit' || p.st === 'hitair');
     const blockFlash = p.st === 'block' && p.hitstop > 0;
-    const ghost = p.st !== 'down' && p.st !== 'getup' && p.inv > 0 && this.clock % 4 < 2 && p.st !== 'thrown';
+    const ghost = p.st !== 'down' && p.st !== 'getup' && (p.inv > 0 || moveInvincible(p)) && this.clock % 4 < 2 && p.st !== 'thrown';
     this.ctx.save();
     if (ghost) this.ctx.globalAlpha = 0.55;
     const shakeX = p.hitstop > 0 && (p.st === 'hit' || p.st === 'hitair') ? (this.clock % 2 ? 4 : -4) : 0;
@@ -457,6 +551,40 @@ export class Renderer {
       aura: s.freeze > 0 && s.freezeBy === i,
     });
     this.ctx.restore();
+    if (p.frozen > 0 && p.st === 'hit') this.drawIceBlock(p, ch);
+  }
+
+  // 凍った相手を包む氷
+  drawIceBlock(p, ch) {
+    const ctx = this.ctx;
+    const w = ch.w * 1.9;
+    const h = ch.h * 1.08;
+    const x = p.x - w / 2;
+    const y = GROUND_Y - p.y - h;
+    const melt = Math.min(1, p.frozen / 12);
+    ctx.save();
+    ctx.globalAlpha = 0.55 * melt + 0.15;
+    ctx.fillStyle = '#bfe6ff';
+    ctx.beginPath();
+    ctx.moveTo(x + 8, y + h);
+    ctx.lineTo(x, y + h * 0.35);
+    ctx.lineTo(x + w * 0.3, y);
+    ctx.lineTo(x + w * 0.78, y + 10);
+    ctx.lineTo(x + w, y + h * 0.4);
+    ctx.lineTo(x + w - 6, y + h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = melt;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.2, y + h * 0.3);
+    ctx.lineTo(x + w * 0.35, y + h * 0.15);
+    ctx.moveTo(x + w * 0.6, y + h * 0.7);
+    ctx.lineTo(x + w * 0.8, y + h * 0.5);
+    ctx.stroke();
+    ctx.restore();
   }
 
   drawSwoosh(p) {
@@ -534,6 +662,121 @@ export class Renderer {
       ctx.quadraticCurveTo(10, 0, -12, -q.h / 2);
       ctx.fill();
       ctx.stroke();
+    } else if (q.kind === 'star') {
+      // 手裏剣
+      ctx.rotate(q.age * 0.6 * dir);
+      ctx.fillStyle = '#c9ced6';
+      ctx.beginPath();
+      for (let k = 0; k < 8; k++) {
+        const a = k / 8 * Math.PI * 2;
+        const rr = k % 2 ? q.w * 0.18 : q.w * 0.62;
+        ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = INK;
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (q.kind === 'bolt') {
+      // 空から落ちる稲妻。地面までの柱で描く
+      const top = -q.h / 2 - 760;
+      const bottom = q.h / 2 + q.y;
+      const zig = [];
+      const r = seeded(q.age * 31 + 7);
+      for (let yy = top; yy < bottom; yy += 46) zig.push([(r() - 0.5) * 46, yy]);
+      zig.push([0, bottom]);
+      for (const [w, c] of [[q.w * 0.42, INK], [q.w * 0.3, pal.trim], [q.w * 0.12, '#ffffff']]) {
+        ctx.strokeStyle = c;
+        ctx.lineWidth = w;
+        ctx.lineJoin = 'miter';
+        ctx.beginPath();
+        zig.forEach(([zx, zy], i) => (i ? ctx.lineTo(zx, zy) : ctx.moveTo(zx, zy)));
+        ctx.stroke();
+      }
+      ctx.fillStyle = pal.trim;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.ellipse(0, bottom, q.w * 0.8, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (q.kind === 'shadow') {
+      // 地面を這う影
+      ctx.scale(dir, 1);
+      ctx.translate(0, q.h / 2);
+      ctx.fillStyle = INK;
+      ctx.beginPath();
+      ctx.ellipse(-10, -4, q.w * 0.62, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = pal.trim;
+      for (let i = 0; i < 4; i++) {
+        const hx = q.w * 0.4 - i * 20;
+        const hh = 24 + 10 * Math.sin(q.age * 0.5 + i);
+        ctx.beginPath();
+        ctx.moveTo(hx - 8, -4);
+        ctx.quadraticCurveTo(hx + 10, -hh * 0.6, hx + 2, -hh);
+        ctx.quadraticCurveTo(hx, -hh * 0.4, hx - 14, -4);
+        ctx.fill();
+      }
+    } else if (q.kind === 'ice') {
+      ctx.scale(dir, 1);
+      ctx.fillStyle = '#d8f0ff';
+      ctx.beginPath();
+      ctx.moveTo(q.w * 0.6, 0);
+      ctx.lineTo(-q.w * 0.2, -q.h / 2);
+      ctx.lineTo(-q.w * 0.5, -q.h * 0.15);
+      ctx.lineTo(-q.w * 0.3, 0);
+      ctx.lineTo(-q.w * 0.5, q.h * 0.2);
+      ctx.lineTo(-q.w * 0.2, q.h / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(q.w * 0.4, 0);
+      ctx.lineTo(-q.w * 0.2, -q.h * 0.25);
+      ctx.stroke();
+    } else if (q.kind === 'trap') {
+      // 地面に置かれた霜。効き始めるまでは薄い
+      const armed = q.age >= (q.data.arm || 0);
+      const fade = Math.min(1, q.life / 30);
+      ctx.translate(0, q.h / 2);
+      ctx.globalAlpha = (armed ? 1 : 0.35) * fade;
+      ctx.fillStyle = '#9fd4f2';
+      ctx.beginPath();
+      ctx.ellipse(0, -2, q.w * 0.6, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#eaf7ff';
+      for (let i = -2; i <= 2; i++) {
+        const hh = (armed ? 22 : 10) + (i % 2 ? 0 : 10) + Math.sin(q.age * 0.12 + i) * 3;
+        ctx.beginPath();
+        ctx.moveTo(i * 13 - 7, -4);
+        ctx.lineTo(i * 13, -4 - hh);
+        ctx.lineTo(i * 13 + 7, -4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    } else if (q.kind === 'prison') {
+      // 地面から突き出す大きな氷
+      const grow = Math.min(1, (q.age + 1) / 5);
+      ctx.translate(0, q.h / 2);
+      ctx.fillStyle = '#c4ebff';
+      for (const [ox, hw, hk] of [[-40, 30, 0.7], [38, 32, 0.8], [0, 40, 1]]) {
+        const hh = q.h * hk * grow;
+        ctx.beginPath();
+        ctx.moveTo(ox - hw, 0);
+        ctx.lineTo(ox - hw * 0.6, -hh * 0.8);
+        ctx.lineTo(ox, -hh);
+        ctx.lineTo(ox + hw * 0.6, -hh * 0.8);
+        ctx.lineTo(ox + hw, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
     } else {
       ctx.fillStyle = pal.gi;
       ctx.beginPath();
@@ -839,6 +1082,13 @@ export class Renderer {
   }
 }
 
+// なびく布（はちまき・髪・マフラー）。キャラの見分けどころ
+const CLOTH = {
+  kagari: { at: 'top', len: 18, n: 6, w: 11, droop: 1.2, color: 'trim' },
+  shizuku: { at: 'head', len: 15, n: 6, w: 15, droop: 3.4, color: 'hair' },
+  hayate: { at: 'neck', len: 21, n: 8, w: 12, droop: 0.5, color: 'trim' },
+};
+
 // キャラ1体を描く。キャラ選択画面の肖像でも使う
 export function paintFighter(ctx, ch, pal, pose, x, groundScreenY, facing, o = {}) {
   const sk = solve(pose, ch);
@@ -888,19 +1138,22 @@ export function paintFighter(ctx, ch, pal, pose, x, groundScreenY, facing, o = {
 
   // なびく布（キャラの見分けどころ）
   const clock = o.clock || 0;
-  if (ch.id === 'kagari' || ch.id === 'shizuku') {
-    const root = ch.id === 'kagari' ? { x: sk.top.x - 4, y: sk.top.y + 2 } : { x: sk.head.x - 10, y: sk.head.y + 8 };
-    const len = ch.id === 'kagari' ? 18 : 15;
+  const cloth = CLOTH[ch.id];
+  if (cloth) {
+    const root = cloth.at === 'top' ? { x: sk.top.x - 4, y: sk.top.y + 2 }
+      : cloth.at === 'neck' ? { x: sk.head.x - 6, y: sk.head.y - 14 }
+        : { x: sk.head.x - 10, y: sk.head.y + 8 };
+    const len = cloth.len;
     const pts = [root];
     let wave = clock * 0.2;
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= cloth.n; i++) {
       wave += 0.7;
       const prev = pts[i - 1];
       const drag = -facing * (o.vx || 0) * 1.2;
-      pts.push({ x: prev.x - len + drag * 0.5, y: prev.y + Math.sin(wave) * 6 - i * (ch.id === 'shizuku' ? 3.4 : 1.2) });
+      pts.push({ x: prev.x - len + drag * 0.5, y: prev.y + Math.sin(wave) * 6 - i * cloth.droop });
     }
-    const color = ch.id === 'kagari' ? pal.trim : pal.hair;
-    for (const [w, c] of [[(ch.id === 'kagari' ? 11 : 15) + 7, INK], [ch.id === 'kagari' ? 11 : 15, flash || color]]) {
+    const color = pal[cloth.color];
+    for (const [w, c] of [[cloth.w + 7, INK], [cloth.w, flash || color]]) {
       ctx.strokeStyle = c;
       ctx.lineWidth = w;
       ctx.lineJoin = 'round';
@@ -967,7 +1220,20 @@ export function paintFighter(ctx, ch, pal, pose, x, groundScreenY, facing, o = {
   ctx.beginPath();
   ctx.arc(hp[0], hp[1], headR, 0, Math.PI * 2);
   ctx.fill();
-  if (!flash) {
+  if (!flash && ch.id === 'kage') {
+    // フードで顔を隠し、目だけ光る
+    ctx.fillStyle = pal.dark;
+    ctx.beginPath();
+    ctx.arc(hp[0], hp[1], headR + 1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = INK;
+    ctx.beginPath();
+    ctx.ellipse(hp[0] + facing * 6, hp[1] + 2, headR * 0.62, headR * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = pal.trim;
+    ctx.fillRect(hp[0] + facing * 5 - 4, hp[1] - 1, 8, 3.5);
+    ctx.fillRect(hp[0] + facing * 13 - 3, hp[1] - 1, 6, 3.5);
+  } else if (!flash) {
     // 髪・装飾
     ctx.fillStyle = pal.hair;
     ctx.beginPath();
@@ -994,6 +1260,31 @@ export function paintFighter(ctx, ch, pal, pose, x, groundScreenY, facing, o = {
     // 目
     ctx.fillStyle = INK;
     ctx.fillRect(hp[0] + facing * 7 - 3, hp[1] + 1, 7, 3.5);
+    // ハヤテの口元を覆う布
+    if (ch.id === 'hayate') {
+      ctx.fillStyle = pal.dark;
+      ctx.beginPath();
+      ctx.arc(hp[0], hp[1], headR, 0.05 * Math.PI, 0.95 * Math.PI);
+      ctx.lineTo(hp[0] - headR, hp[1] + 6);
+      ctx.lineTo(hp[0] + headR, hp[1] + 6);
+      ctx.fill();
+    }
+  }
+  // コガラシの毛皮の肩掛け
+  if (ch.id === 'kogarashi' && !flash) {
+    const sp = P(sk.shoulder);
+    for (const [dx, dy, r] of [[-16, 4, 15], [0, -4, 17], [16, 4, 15], [-6, 14, 13], [10, 14, 13]]) {
+      ctx.fillStyle = INK;
+      ctx.beginPath();
+      ctx.arc(sp[0] + dx * facing, sp[1] + dy, r + 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = pal.trim;
+    for (const [dx, dy, r] of [[-16, 4, 15], [0, -4, 17], [16, 4, 15], [-6, 14, 13], [10, 14, 13]]) {
+      ctx.beginPath();
+      ctx.arc(sp[0] + dx * facing, sp[1] + dy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   // ゴウテツの肩当て
   if (ch.id === 'goutetsu' && !flash) {
@@ -1010,4 +1301,22 @@ export function paintFighter(ctx, ch, pal, pose, x, groundScreenY, facing, o = {
 
   // 手前の腕
   limb(sk.armF, 16, 14, pal.gi, pal.trim, 10);
+
+  // ライの棒：前腕の向きに沿って、手から前後に伸ばす
+  if (ch.id === 'rai') {
+    const a = sk.armF.b;
+    const c = sk.armF.c;
+    const len = Math.hypot(c.x - a.x, c.y - a.y) || 1;
+    const ux = (c.x - a.x) / len;
+    const uy = (c.y - a.y) / len;
+    const front = { x: c.x + ux * 100 * k, y: c.y + uy * 100 * k };
+    const back = { x: c.x - ux * 70 * k, y: c.y - uy * 70 * k };
+    stroke(back, front, 15, INK);
+    stroke(back, front, 8, flash || '#a8783e');
+    stroke({ x: front.x - ux * 14, y: front.y - uy * 14 }, front, 8, flash || pal.trim);
+    ctx.fillStyle = flash || pal.trim;
+    ctx.beginPath();
+    ctx.arc(...P(c), 10 * k, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }

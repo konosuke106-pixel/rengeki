@@ -19,7 +19,7 @@ function newFighter(idx, char, palette) {
     st: 'idle', f: 0, move: null, used: [], hit: false, blocked: false, chain: 0,
     stun: 0, hitstop: 0, inv: 0, throwInv: 0, landT: 0, jumps: 0, noAct: false,
     kd: false, bounce: false, wallB: false, crouching: false, jumpDir: 0, dashDir: 0,
-    armorUsed: false, thrownBy: -1,
+    armorUsed: false, thrownBy: -1, frozen: 0,
     comboHits: 0, comboDmg: 0, idleF: 0,
     hist: new Array(HIST_LEN).fill(0), edge: 0, buf: null,
     lastTap: null, dashBit: 0, dashT: -99,
@@ -48,7 +48,7 @@ function placeForRound(s) {
       x: i === 0 ? -210 : 210, y: 0, vx: 0, vy: 0, facing: i === 0 ? 1 : -1,
       hp: CHARS[p.char].hp, st: 'idle', f: 0, move: null, used: [], hit: false, blocked: false, chain: 0,
       stun: 0, hitstop: 0, inv: 0, throwInv: 0, landT: 0, jumps: 0, noAct: false, kd: false, bounce: false,
-      wallB: false, crouching: false, armorUsed: false, thrownBy: -1, comboHits: 0, comboDmg: 0, idleF: 0, buf: null,
+      wallB: false, crouching: false, armorUsed: false, thrownBy: -1, frozen: 0, comboHits: 0, comboDmg: 0, idleF: 0, buf: null,
     });
   });
   s.projs = [];
@@ -112,6 +112,8 @@ function chooseMove(s, p) {
   const fromSpecial = p.st === 'attack' && moveOf(p) && moveOf(p).rank === 4;
   if (m & BTN.X && (!air || fromSpecial) && p.meter >= SUPER_COST) return 'super';
   if (m & BTN.T && !air) return 'throw';
+  // 空中必殺（持っているキャラだけ）
+  if (m & BTN.S && air && CHARS[p.char].moves.jS && p.st === 'air') return 'jS';
   if (m & BTN.S && !air) {
     if (mask & BTN.D) return 'spD';
     if (mask & forwardBit(p)) return 'spF';
@@ -266,9 +268,16 @@ function landed(s, p) {
 
 function spawnProjectile(s, p, o, sp) {
   const dir = p.facing;
+  // 置ける数に上限がある物（罠）は、古い物から消す
+  if (sp.max) {
+    const mine = s.projs.filter((q) => q.owner === p.idx && q.kind === sp.kind);
+    if (mine.length >= sp.max) mine[0].life = 0;
+    s.projs = s.projs.filter((q) => q.life > 0);
+  }
+  const x = sp.atOpp ? o.x : p.x + dir * sp.x;
   s.projs.push({
     owner: p.idx,
-    x: sp.atOpp ? o.x : p.x + dir * sp.x,
+    x: Math.max(-STAGE_HALF, Math.min(STAGE_HALF, x)),
     y: sp.y + (sp.atOpp ? 0 : p.y),
     vx: sp.vx * dir,
     vy: sp.vy || 0,
@@ -290,8 +299,10 @@ function updateAttack(s, p, o) {
     emit(s, { t: 'jump', x: p.x, by: p.idx });
     return;
   }
+  if (m.warp && p.f === m.warp.f) warpBehind(s, p, o, m.warp.dist);
   if (m.motion) {
     for (const mo of m.motion) {
+      if (mo.untilHit && (p.hit || p.blocked)) continue;
       if (p.f >= mo.from && p.f <= mo.to) {
         if (mo.vx !== undefined) p.vx = mo.vx * p.facing;
         if (mo.vy !== undefined) { p.vy = mo.vy; p.y = Math.max(p.y, 0.01); }
@@ -312,6 +323,24 @@ function updateAttack(s, p, o) {
       toAfterMove(p);
     }
   }
+}
+
+// 相手の向こう側へ回り込む。画面端で回り込めない時は相手の手前に出る
+function warpBehind(s, p, o, dist) {
+  const side = p.x <= o.x ? 1 : -1;
+  let x = o.x + side * dist;
+  if (Math.abs(x) > STAGE_HALF) x = o.x - side * dist;
+  emit(s, { t: 'warp', x: p.x, to: x, by: p.idx });
+  p.x = Math.max(-STAGE_HALF, Math.min(STAGE_HALF, x));
+  p.vx = 0;
+  p.facing = o.x > p.x ? 1 : -1;
+}
+
+// 技の無敵時間中か（move.inv = [始まり, 終わり] のコマ）
+export function moveInvincible(p) {
+  if (p.st !== 'attack') return false;
+  const m = moveOf(p);
+  return !!(m && m.inv && p.f >= m.inv[0] && p.f <= m.inv[1]);
 }
 
 function toAfterMove(p) {
@@ -392,6 +421,7 @@ function updateFighter(s, p, o) {
     }
     case 'hit':
       p.stun--;
+      if (p.frozen > 0) p.frozen--;
       p.vx *= 0.86;
       if (p.stun <= 0) toNeutral(p);
       break;
@@ -481,7 +511,7 @@ function applyPhysics(s, p) {
           landed(s, p);
           p.st = 'land';
           p.f = 0;
-          p.landT = 5;
+          p.landT = p.hit ? 5 : (m.landT || 5);
           p.move = null;
         } else {
           p.y = 0;
@@ -574,6 +604,7 @@ function dealDamage(s, a, d, hb, at, counter, isProj) {
   d.stun = stun;
   d.vx = dir * (hb.kb || 3);
   d.thrownBy = -1;
+  d.frozen = 0;
 
   const launchGround = hb.launch !== undefined && hb.launch > 0;
   if (wasAir || launchGround || d.hp <= 0) {
@@ -594,6 +625,11 @@ function dealDamage(s, a, d, hb, at, counter, isProj) {
     d.st = 'hit';
     d.kd = false;
     d.bounce = false;
+    // 凍る：その場で止まり、長く動けない
+    if (hb.freeze) {
+      d.frozen = stun;
+      d.vx = 0;
+    }
   }
 
   const hs = hb.hs || 6;
@@ -610,7 +646,21 @@ function dealDamage(s, a, d, hb, at, counter, isProj) {
   emit(s, { t: 'hit', x: at.x, y: at.y, fx: hb.fx || 'm', by: a.idx, hits: d.comboHits, combo: d.comboDmg, dmg, counter, ko: d.hp <= 0 });
 }
 
+// 当て身：構えの最中に攻撃を受けたら、受け流して反撃の技に移る（投げは別の処理なので防げない）
+function tryParry(s, a, d, at, isProj) {
+  if (d.st !== 'attack') return false;
+  const dm = moveOf(d);
+  if (!dm.parry || d.f < dm.parry[0] || d.f > dm.parry[1]) return false;
+  startMove(s, d, dm.counter);
+  d.hitstop = 12;
+  d.facing = a.x > d.x ? 1 : -1;
+  if (!isProj) a.hitstop = 12;
+  emit(s, { t: 'parry', x: at.x, y: at.y, by: d.idx });
+  return true;
+}
+
 function applyHit(s, a, d, hb, at, counter, isProj) {
+  if (tryParry(s, a, d, at, isProj)) return;
   const dir = isProj && isProj.dir ? isProj.dir : a.facing;
   const originX = isProj ? isProj.x : a.x;
   if (canBlock(d, originX, hb.lv)) {
@@ -686,7 +736,7 @@ function resolveMelee(s) {
   const [p, q] = s.ps;
   const hits = [];
   for (const [a, d] of [[p, q], [q, p]]) {
-    if (a.st !== 'attack' || a.hitstop > 0 || d.inv > 0) continue;
+    if (a.st !== 'attack' || a.hitstop > 0 || d.inv > 0 || moveInvincible(d)) continue;
     const hr = hurtRect(d);
     for (const { b, i, rect } of activeBoxes(a)) {
       if (!overlap(rect, hr)) continue;
@@ -728,7 +778,7 @@ function updateProjectiles(s) {
     for (let j = i + 1; j < s.projs.length; j++) {
       const a = s.projs[i];
       const b = s.projs[j];
-      if (a.owner === b.owner || a.life <= 0 || b.life <= 0 || a.kind === 'rain' || b.kind === 'rain') continue;
+      if (a.owner === b.owner || a.life <= 0 || b.life <= 0 || a.data.noClash || b.data.noClash) continue;
       if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2) {
         a.life = 0;
         b.life = 0;
@@ -740,13 +790,14 @@ function updateProjectiles(s) {
     if (q.life <= 0) continue;
     const a = s.ps[q.owner];
     const d = s.ps[1 - q.owner];
-    if (d.inv > 0) continue;
+    if (d.inv > 0 || moveInvincible(d) || q.age < (q.data.arm || 0)) continue;
     const rect = { x0: q.x - q.w / 2, x1: q.x + q.w / 2, y0: q.y, y1: q.y + q.h };
     if (!overlap(rect, hurtRect(d))) continue;
     q.life = 0;
     const counter = d.st === 'attack';
     const at = { x: (q.x + d.x) / 2, y: Math.min(q.y + q.h / 2, d.y + 130) };
-    applyHit(s, a, d, q.data, at, counter, { dir: q.vx >= 0 ? (q.vx === 0 ? a.facing : 1) : -1, x: q.x });
+    const dir = q.vx > 0 ? 1 : q.vx < 0 ? -1 : (d.x >= q.x ? 1 : -1);
+    applyHit(s, a, d, q.data, at, counter, { dir, x: q.x });
   }
   s.projs = s.projs.filter((q) => q.life > 0);
 }

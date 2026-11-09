@@ -57,7 +57,7 @@ function buildSelect() {
     btn.className = 'char-card';
     btn.type = 'button';
     btn.dataset.char = id;
-    btn.style.setProperty('--card', ch.palettes[0].gi);
+    btn.style.setProperty('--card', ch.card || ch.palettes[0].gi);
     btn.style.setProperty('--card-dark', ch.palettes[0].dark);
 
     const cv = document.createElement('canvas');
@@ -641,6 +641,7 @@ function fillMoveList() {
   box.textContent = '';
   const ch = CHARS[app.match.ps[myIdx()].char];
   const rows = SPECIAL_COMMANDS.map(([id, simple, motion]) => [ch.moves[id].name, simple, motion]);
+  if (ch.moves.jS) rows.splice(3, 0, [ch.moves.jS.name, 'ジャンプ中に必殺', '']);
   rows.forEach(([name, simple, motion]) => {
     const tr = document.createElement('tr');
     [name, simple, motion].forEach((c) => {

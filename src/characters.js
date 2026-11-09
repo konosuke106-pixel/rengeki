@@ -117,11 +117,142 @@ const shizukuMoves = {
     id: 'super', name: '千雨', rank: 5, super: true, total: 76, inv: [1, 20], boxes: [],
     anim: [[0, 'castW'], [10, 'cast'], [60, 'idle']],
     spawn: [12, 18, 24, 30, 36, 42, 48, 54].map((f, i, all) => ({
-      f, atOpp: true, x: 0, y: 560, vx: 0, vy: -26, w: 66, h: 84, life: 40, kind: 'rain', lv: 'h', hs: i === all.length - 1 ? 14 : 4, fx: i === all.length - 1 ? 's' : 'm', superFix: true, chip: 3,
+      f, atOpp: true, x: 0, y: 560, vx: 0, vy: -26, w: 66, h: 84, life: 40, kind: 'rain', noClash: true, lv: 'h', hs: i === all.length - 1 ? 14 : 4, fx: i === all.length - 1 ? 's' : 'm', superFix: true, chip: 3,
       ...(i === all.length - 1
         ? { dmg: 90, stun: 40, block: 10, kb: 8, launch: 18, kd: true }
         : { dmg: 36, stun: 30, block: 10, kb: 0.5 }),
     })),
+  },
+};
+
+// ライ：長い棒で間合いを制する。雷を落とす
+const raiMoves = {
+  ...normals({ sp: 1, r: 1.3, d: 1.02 }),
+  spN: {
+    id: 'spN', name: '雷突', rank: 4, total: 46,
+    boxes: [hitbox(14, 4, [150, 84, 170, 40], { dmg: 95, stun: 26, block: 18, kb: 10, lv: 'm', launch: 10, kd: true, wall: true, hs: 12, fx: 'h', chip: 8 })],
+    motion: [{ from: 9, to: 16, vx: 10 }],
+    anim: [[0, 'heavyW'], [13, 'heavy'], [30, 'idle']],
+  },
+  spD: {
+    id: 'spD', name: '雷柱', rank: 4, total: 40, oneProj: true, boxes: [],
+    anim: [[0, 'castW'], [8, 'win'], [30, 'idle']],
+    spawn: [{ f: 10, x: 160, y: 320, vx: 0, vy: -46, w: 120, h: 130, life: 16, kind: 'bolt', noClash: true, dmg: 80, stun: 34, block: 14, kb: 4, lv: 'm', hs: 10, fx: 'h', chip: 6 }],
+  },
+  spF: {
+    id: 'spF', name: '旋棍', rank: 4, total: 42, inv: [1, 8],
+    boxes: [
+      hitbox(5, 4, [50, 110, 150, 150], { dmg: 60, stun: 30, block: 14, kb: 2, lv: 'm', launch: 16, hs: 9, fx: 'm' }),
+      hitbox(11, 4, [40, 140, 150, 140], { dmg: 60, stun: 40, block: 14, kb: 4, lv: 'm', launch: 20, kd: true, hs: 11, fx: 'h' }),
+    ],
+    anim: [[0, 'crouch'], [4, 'upper'], [11, 'win'], [26, 'idle']],
+  },
+  super: {
+    id: 'super', name: '天雷', rank: 5, super: true, total: 64, inv: [1, 12], boxes: [],
+    anim: [[0, 'castW'], [10, 'win'], [52, 'idle']],
+    spawn: [14, 20, 26, 32, 40].map((f, i, all) => ({
+      f, atOpp: true, x: 0, y: 520, vx: 0, vy: -44, w: 100, h: 150, life: 14, kind: 'bolt', noClash: true, lv: 'm', superFix: true, chip: 4,
+      ...(i === all.length - 1
+        ? { dmg: 120, stun: 40, block: 10, kb: 8, launch: 20, kd: true, hs: 16, fx: 's' }
+        : { dmg: 45, stun: 34, block: 10, kb: 0.5, hs: 5, fx: 'm' }),
+    })),
+  },
+};
+
+// ハヤテ：高く跳び、空から急降下。相手の背後へ回り込む
+const hayateMoves = {
+  ...normals({ sp: -1, r: 0.95, d: 0.86 }),
+  spN: {
+    id: 'spN', name: '手裏剣', rank: 4, total: 30, oneProj: true, boxes: [],
+    anim: [[0, 'castW'], [7, 'cast']],
+    spawn: [{ f: 8, x: 50, y: 112, vx: 17, w: 34, h: 34, life: 60, kind: 'star', dmg: 40, stun: 18, block: 10, kb: 3, lv: 'm', hs: 5, fx: 'l', chip: 3 }],
+  },
+  spD: {
+    id: 'spD', name: '旋風脚', rank: 4, total: 34, inv: [1, 5],
+    boxes: [hitbox(4, 10, [40, 50, 90, 150], { dmg: 75, stun: 40, block: 16, kb: 2, lv: 'm', launch: 18, hs: 9, fx: 'm' })],
+    motion: [{ from: 4, to: 12, vy: 16, vx: 3 }],
+    anim: [[0, 'crouch'], [3, 'rising'], [16, 'jump']],
+  },
+  jS: {
+    id: 'jS', name: '疾風落', rank: 3, air: true, total: 40, landT: 14,
+    boxes: [hitbox(5, 35, [36, -30, 80, 70], { dmg: 70, stun: 22, block: 12, kb: 5, lv: 'h', hs: 9, fx: 'h' })],
+    motion: [{ from: 3, to: 40, vx: 13, vy: -13, untilHit: true }],
+    anim: [[0, 'aWind'], [4, 'dive']],
+  },
+  spF: {
+    id: 'spF', name: '影走り', rank: 4, total: 36, inv: [1, 12], noPush: true, warp: { f: 10, dist: 72 },
+    boxes: [hitbox(13, 4, [56, 60, 90, 110], { dmg: 65, stun: 24, block: 14, kb: 5, lv: 'm', hs: 8, fx: 'm' })],
+    anim: [[0, 'dashF'], [10, 'castW'], [13, 'heavy'], [24, 'idle']],
+  },
+  super: {
+    id: 'super', name: '疾風乱舞', rank: 5, super: true, total: 72, inv: [1, 16],
+    boxes: [14, 18, 22, 26, 30, 34, 38, 42, 48].map((f, i, all) => hitbox(f, 3, [70, 40, 130, 140], i === all.length - 1
+      ? { dmg: 100, stun: 50, block: 8, kb: 9, lv: 'm', launch: 22, kd: true, hs: 16, fx: 's', superFix: true, chip: 12 }
+      : { dmg: 30, stun: 34, block: 8, kb: 0.6, lv: 'm', hs: 3, fx: i % 2 ? 'm' : 'l', superFix: true, chip: 3 })),
+    motion: [{ from: 8, to: 20, vx: 18 }, { from: 21, to: 46, vx: 1.5 }],
+    anim: [[0, 'castW'], [10, 'dashF'], [14, 'jab'], [18, 'aKick'], [22, 'heavy'], [26, 'kickM'], [30, 'jab'], [34, 'aKick'], [38, 'heavy'], [42, 'kickM'], [48, 'rising'], [60, 'idle']],
+  },
+};
+
+// カゲ：構えて受け流す。足元を這う影
+const kageMoves = {
+  ...normals({ sp: 0, r: 1.04, d: 0.98 }),
+  spN: {
+    id: 'spN', name: '影返し', rank: 4, total: 44, parry: [3, 24], counter: 'cnt', boxes: [],
+    anim: [[0, 'parry'], [25, 'idle']],
+  },
+  // 影返しが成功した時だけ出る反撃（コマンドはない）
+  cnt: {
+    id: 'cnt', name: '影返し・斬', rank: 4, total: 34, inv: [1, 14],
+    boxes: [hitbox(6, 4, [70, 50, 120, 140], { dmg: 120, stun: 40, block: 18, kb: 6, lv: 'm', launch: 17, kd: true, hs: 14, fx: 'h' })],
+    motion: [{ from: 1, to: 7, vx: 12 }],
+    anim: [[0, 'castW'], [5, 'heavy'], [18, 'idle']],
+  },
+  spD: {
+    id: 'spD', name: '影縫い', rank: 4, total: 36, oneProj: true, crouch: true, boxes: [],
+    anim: [[0, 'crouch'], [10, 'sweep'], [26, 'crouch']],
+    spawn: [{ f: 12, x: 60, y: 0, vx: 10, w: 80, h: 30, life: 70, kind: 'shadow', dmg: 55, stun: 30, block: 12, kb: 2, lv: 'l', hs: 7, fx: 'm', chip: 4 }],
+  },
+  spF: {
+    id: 'spF', name: '影討ち', rank: 4, total: 40, crouch: true,
+    boxes: [hitbox(8, 9, [70, 4, 110, 40], { dmg: 80, stun: 30, block: 16, kb: 6, lv: 'l', launch: 10, kd: true, hs: 10, fx: 'h', chip: 5 })],
+    motion: [{ from: 4, to: 16, vx: 12 }],
+    anim: [[0, 'crouch'], [5, 'slide'], [24, 'crouch']],
+  },
+  super: {
+    id: 'super', name: '朧月', rank: 5, super: true, total: 70, inv: [1, 30], noPush: true,
+    boxes: [
+      ...[13, 16, 19, 22].map((f) => hitbox(f, 2, [0, 20, 220, 170], { dmg: 45, stun: 40, block: 8, kb: 0.5, lv: 'm', hs: 4, fx: 'm', superFix: true, chip: 4 })),
+      hitbox(34, 4, [-70, 30, 170, 170], { dmg: 140, stun: 50, block: 10, kb: -8, lv: 'm', launch: 22, kd: true, hs: 18, fx: 's', superFix: true, chip: 12 }),
+    ],
+    motion: [{ from: 10, to: 22, vx: 22 }, { from: 23, to: 40, vx: 0 }],
+    anim: [[0, 'castW'], [10, 'dashF'], [24, 'parry'], [33, 'upper'], [50, 'idle']],
+  },
+};
+
+// コガラシ：氷の罠を置いて動きを封じる
+const kogarashiMoves = {
+  ...normals({ sp: 1, r: 1.05, d: 1.04 }),
+  spN: {
+    id: 'spN', name: '氷柱', rank: 4, total: 40, oneProj: true, boxes: [],
+    anim: [[0, 'castW'], [11, 'cast']],
+    spawn: [{ f: 12, x: 60, y: 96, vx: 8, w: 60, h: 40, life: 120, kind: 'ice', dmg: 65, stun: 22, block: 14, kb: 5, lv: 'm', hs: 8, fx: 'm', chip: 5 }],
+  },
+  spD: {
+    id: 'spD', name: '霜置き', rank: 4, total: 32, boxes: [],
+    anim: [[0, 'crouch'], [8, 'slam'], [22, 'crouch']],
+    spawn: [{ f: 10, x: 170, y: 0, vx: 0, w: 76, h: 28, life: 330, arm: 24, max: 2, kind: 'trap', noClash: true, freeze: true, dmg: 40, stun: 56, block: 12, kb: 0, lv: 'l', hs: 10, fx: 'h' }],
+  },
+  spF: {
+    id: 'spF', name: '氷滑り', rank: 4, total: 42, crouch: true,
+    boxes: [hitbox(9, 10, [74, 4, 120, 40], { dmg: 70, stun: 30, block: 16, kb: 6, lv: 'l', hs: 9, fx: 'm', chip: 5 })],
+    motion: [{ from: 5, to: 18, vx: 12 }],
+    anim: [[0, 'crouch'], [6, 'slide'], [26, 'crouch']],
+  },
+  super: {
+    id: 'super', name: '氷牢', rank: 5, super: true, total: 60, inv: [1, 14], boxes: [],
+    anim: [[0, 'castW'], [12, 'slam'], [44, 'idle']],
+    spawn: [{ f: 14, atOpp: true, x: 0, y: 0, vx: 0, w: 120, h: 230, life: 14, arm: 4, kind: 'prison', noClash: true, freeze: true, dmg: 230, stun: 80, block: 10, kb: 0, lv: 'm', hs: 16, fx: 's', superFix: true, chip: 12 }],
   },
 };
 
@@ -155,6 +286,50 @@ export const CHARS = {
       { gi: '#e4679a', dark: '#973a60', trim: '#fff0c2', skin: '#f0c9a4', hair: '#3a1a33' },
     ],
     moves: shizukuMoves,
+  },
+  rai: {
+    id: 'rai', name: 'ライ', kana: '雷', title: '雷の棒術家', style: '長い棒で遠くから突く。近づかれると弱い',
+    hp: 1000, w: 60, h: 190, walk: 5.2, back: 4.2, jump: 18.5, jumpVx: 6, dash: 14, dashF: 15,
+    build: 1.05, stats: { 攻撃: 4, 速度: 2, 体力: 3 }, stage: 'storm',
+    cpu: { antiAir: 'spF', zone: 'spD' },
+    palettes: [
+      { gi: '#5b3fa0', dark: '#2f1f5c', trim: '#ffd84a', skin: '#e2ab84', hair: '#f4f1e8' },
+      { gi: '#c9a227', dark: '#6e5510', trim: '#2b2b6e', skin: '#e2ab84', hair: '#2a2320' },
+    ],
+    moves: raiMoves,
+  },
+  hayate: {
+    id: 'hayate', name: 'ハヤテ', kana: '風', title: '風の忍び', style: '高く跳んで空から急降下。背後に回り込む',
+    hp: 920, w: 56, h: 182, walk: 6.6, back: 5.2, jump: 21, jumpVx: 7.4, dash: 17, dashF: 13,
+    build: 0.9, stats: { 攻撃: 3, 速度: 4, 体力: 2 }, stage: 'bamboo',
+    cpu: { antiAir: 'spD', zone: 'spN', dive: true },
+    palettes: [
+      { gi: '#2f6b3a', dark: '#173a1e', trim: '#e8e2c8', skin: '#e6b38c', hair: '#16121c' },
+      { gi: '#3b3b44', dark: '#1e1e26', trim: '#d9443a', skin: '#e6b38c', hair: '#16121c' },
+    ],
+    moves: hayateMoves,
+  },
+  kage: {
+    id: 'kage', name: 'カゲ', kana: '影', title: '影の剣客', style: '構えて受け流し反撃。読み合いが得意',
+    hp: 960, w: 58, h: 184, walk: 5.6, back: 4.6, jump: 18.5, jumpVx: 6.4, dash: 16, dashF: 14,
+    build: 0.95, stats: { 攻撃: 4, 速度: 3, 体力: 2 }, stage: 'moonroof',
+    cpu: { antiAir: 'spN', zone: 'spD', parry: true }, card: '#6b5a9a',
+    palettes: [
+      { gi: '#4a3d6e', dark: '#241c3a', trim: '#c46bff', skin: '#d9b8a0', hair: '#4a3d6e' },
+      { gi: '#e9e3d3', dark: '#8a8070', trim: '#c0272d', skin: '#d9b8a0', hair: '#e9e3d3' },
+    ],
+    moves: kageMoves,
+  },
+  kogarashi: {
+    id: 'kogarashi', name: 'コガラシ', kana: '氷', title: '氷の罠師', style: '足は遅いが頑丈。氷の罠で動きを封じる',
+    hp: 1080, w: 66, h: 190, walk: 4.8, back: 3.8, jump: 17.8, jumpVx: 5.6, dash: 13, dashF: 16,
+    build: 1.15, stats: { 攻撃: 3, 速度: 2, 体力: 4 }, stage: 'snow',
+    cpu: { antiAir: 'cH', zone: 'spD' },
+    palettes: [
+      { gi: '#4f86b8', dark: '#264a6e', trim: '#eef6fb', skin: '#efc9aa', hair: '#dfe9f2' },
+      { gi: '#8a2f3a', dark: '#4a161e', trim: '#f2e6c8', skin: '#efc9aa', hair: '#3a2a22' },
+    ],
+    moves: kogarashiMoves,
   },
 };
 
