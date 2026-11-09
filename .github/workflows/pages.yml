@@ -1,3 +1,5 @@
+# 本番は Cloudflare Pages（https://rengeki.pages.dev/）。GitHub と連携して main への push で自動公開される。
+# この GitHub Pages は旧アドレスで、新しいアドレスへ自動で移動するページだけを置く。テストはここでも続けて回す。
 name: Deploy to GitHub Pages
 
 on:
@@ -26,11 +28,10 @@ jobs:
         with:
           node-version: 24
       - run: npm test
-      - run: npm run build
-      - run: rm dist/rengeki.html
+      - run: node tools/make-redirect.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: redirect
       - id: deployment
         uses: actions/deploy-pages@v4

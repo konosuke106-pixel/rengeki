@@ -43,8 +43,11 @@
 - ホーム画面アイコン：夕日を背にカガリが拳を突き出す絵。`tools/icon.html` が元絵で、ゲームの `paintFighter` をそのまま使う（`?char=&pose=&scale=&x=` で変えられる）。`tools/make-icons.ps1` が一時サーバーを立てて Edge で撮り、`icon-180/192/512.png` を作る（`-Preview` で確認用だけ）
 
 ## 公開先
-- 本番：https://konosuke106-pixel.github.io/rengeki/
-- GitHub：`konosuke106-pixel/rengeki`（Public）。`main` に push すると、テスト通過後に自動で公開される
+- 本番：https://rengeki.pages.dev/（Cloudflare Pages、プロジェクト名 `rengeki`、2026-11-10 に移転）
+  - GitHub と連携済み（Cloudflare の GitHub アプリは `rengeki` リポジトリだけに許可）。`main` に push すると Cloudflare が `npm run pages`（テスト→ビルド）を実行し、`dist` を公開する
+  - Node の版は `.node-version`（22）で指定
+- 旧アドレス：https://konosuke106-pixel.github.io/rengeki/ は、新しいアドレスへ自動で移動するページだけを置いている（`.github/workflows/pages.yml` が `tools/make-redirect.mjs` で作る。テストもここで回る）
+- GitHub：`konosuke106-pixel/rengeki`（Public）
 - コミットのメールは GitHub の匿名アドレスを使う（このリポジトリの設定済み）。公開リポジトリなので個人情報を書かない
 - このPCからの push：`git -c http.sslBackend=schannel push origin main`
 - Supabase：プロジェクト `rengeki`（ref `pneboddgrvktehjslplg`、東京、無料）。使う鍵は Publishable key だけ（`src/online-config.js`）
