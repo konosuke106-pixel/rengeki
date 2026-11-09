@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node tools/serve.mjs",
     "test": "node --test tests/sim.test.mjs tests/rollback.test.mjs tests/dummy.test.mjs tests/dash.test.mjs tests/newchars.test.mjs",
-    "build": "node tools/build.mjs"
+    "build": "node tools/build.mjs",
+    "pages": "npm test && npm run build && node -e \"require('fs').rmSync('dist/rengeki.html')\""
   }
 }
