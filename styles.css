@@ -10,7 +10,8 @@
   --body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif;
   color-scheme: dark;
 }
-html, body { height: 100%; background: var(--ink); overscroll-behavior: none; }
+/* manipulation：2回タップでの拡大を止める（スクロールはできる） */
+html, body { height: 100%; background: var(--ink); overscroll-behavior: none; touch-action: manipulation; }
 body {
   margin: 0;
   overflow: hidden;

@@ -55,6 +55,7 @@
 - キャラ選択の強さ表示：スマホ横向きでも攻撃・速度・体力を出す（4列、縦にスクロール）
 - タイトル画面：山の上に16人が2列で並ぶ（`main.js` の `TITLE_CAST` で並びとポーズ、`drawTitleCast` が描く。布がなびくよう常に再描画）
 - ホーム画面アイコン：夕日を背にカガリが拳を突き出す絵。`tools/icon.html` が元絵で、ゲームの `paintFighter` をそのまま使う（`?char=&pose=&scale=&x=` で変えられる）。`tools/make-icons.ps1` が一時サーバーを立てて Edge で撮り、`icon-180/192/512.png` を作る（`-Preview` で確認用だけ）
+- スマホで対戦中に2回タップすると画面がどんどん上にずれる報告（2026-11-11）：対戦画面ではブラウザの指の動き（2回タップの拡大・スクロール）を止める（`main.js` の `battleScreen` の touch イベントで preventDefault。一時停止などの普通のボタンとメニューは除く。ずれたら `unscroll` で戻す）。全体にも `touch-action: manipulation`。PCの疑似表示では再現できないので、実機での確認が必要
 - 安全用のヘッダー（2026-11-11）：本番の全ページに CSP（読み込み元を自分のサイト・Google Fonts・jsDelivr の supabase-js・Supabase の部屋だけに制限、他サイトへの埋め込み禁止）、HSTS、X-Frame-Options などを付けた。中身は `_headers`（ビルドで `dist` にコピー）。CSP がページ内に直接書いたスクリプトを禁止するので、`dist/index.html` はゲームを `game.js`・`styles.css` に分けて読み込む（Artifact 用の `rengeki.html` は1ファイルのまま）。読み込み元を増やすときは `_headers` も直す。食い違いは `tests/headers.test.mjs` が見張る。本番と同じヘッダーで手元確認するには `npm run build` のあと `node tools/serve.mjs dist`（http://localhost:5181）
 
 ## 公開先

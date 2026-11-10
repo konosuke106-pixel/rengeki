@@ -937,6 +937,26 @@ window.addEventListener('contextmenu', (e) => {
   if (document.body.dataset.screen === 'battle') e.preventDefault();
 });
 
+// 対戦中は、スマホのブラウザの「2回タップで拡大・画面がずれる」などの動きを止める。
+// スティックとボタンは pointer イベントで読むので影響しない。
+// 一時停止ボタンやメニューの普通のボタンは、押した扱い（click）が要るので止めない
+const battleScreen = $('#screen-battle');
+const keepTouch = (e) => e.target.closest && e.target.closest('button:not(.tbtn), select, input, a, .panel');
+for (const type of ['touchstart', 'touchmove', 'touchend']) {
+  battleScreen.addEventListener(type, (e) => {
+    if (e.cancelable && !keepTouch(e)) e.preventDefault();
+  }, { passive: false });
+}
+battleScreen.addEventListener('dblclick', (e) => e.preventDefault());
+// それでも画面がずれてしまったら元の位置に戻す
+const unscroll = () => {
+  if (document.body.dataset.screen !== 'battle') return;
+  if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+  for (const el of [$('#app'), battleScreen]) if (el.scrollTop || el.scrollLeft) el.scrollTop = el.scrollLeft = 0;
+};
+window.addEventListener('scroll', unscroll, { passive: true });
+$('#app').addEventListener('scroll', unscroll, { passive: true, capture: true });
+
 input.onPause = () => togglePause();
 input.bindTouch($('#touch'));
 
