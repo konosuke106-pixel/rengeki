@@ -166,6 +166,8 @@ export function createCpu(levelName = 'normal', seed = 12345) {
     if (dist < 280) {
       // 中間距離の得意技（クサリの鎖投げなど）
       if (plan.poke && dist > 150 && r < 0.18 * lv.aggression + 0.04) return specialInput(plan.poke, fwd);
+      // 溜め強：ガードを固めている相手には、溜めてガード崩しを狙う
+      if (op.st === 'guard' && r < 0.25 * lv.aggression) { hold = BTN.C; holdT = 45 + Math.floor(rand() * 30); return hold; }
       if (r < 0.28 * lv.aggression) return BTN.C;
       if (r < 0.48 * lv.aggression) return BTN.B | BTN.D;
       if (r < 0.72) { hold = fwd; holdT = 16; return hold; }

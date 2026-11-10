@@ -531,6 +531,14 @@ export class Renderer {
           this.spark(e.x, sy, 14, '#ffd983', 10);
           this.pushText('耐えた', e.x, sy - 40, '#ffd983', 34, -0.05);
           break;
+        case 'guardCrush':
+          playSound('h');
+          this.shake = Math.max(this.shake, 12);
+          this.flash = Math.max(this.flash, 0.3);
+          this.spark(e.x, sy, 22, '#ff8a2a', 12);
+          this.rings.push({ x: e.x, y: sy, r: 10, max: 120, life: 1, color: '#ff8a2a' });
+          this.pushText('ガード崩し', e.x, sy - 60, '#ff8a2a', 44, -0.06);
+          break;
         case 'justGuard':
           playSound('tech');
           this.flash = Math.max(this.flash, 0.3);
@@ -600,7 +608,8 @@ export class Renderer {
         case 'chargeMax':
           playSound('armor');
           this.spark(e.x, sy, 12, '#ffffff', 8);
-          this.pushText('最大', e.x, sy - 70, '#ffe36b', 34, 0);
+          // 溜め強の最大はガード崩し、ツヅミの衝撃波の最大はガード貫通
+          this.pushText(s.ps[e.by].move === 'sH' ? '最大：ガード崩し' : '最大：ガード不能', e.x, sy - 70, '#ffe36b', 30, 0);
           break;
         case 'poison':
           this.pushText('毒', e.x + (Math.random() - 0.5) * 30, sy - 20, '#8fdc3c', 20, 0);

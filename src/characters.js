@@ -2,6 +2,8 @@
 // box は [前方向の中心, 下端の高さ, 幅, 高さ]
 // lv: m=中段(立ち/しゃがみ両方でガード可) l=下段(しゃがみガードのみ) h=上段(立ちガードのみ)
 
+const CHARGE_MAX = 60; // 溜め強を最大まで溜めるコマ数（1秒）
+
 const hitbox = (startup, active, box, data) => ({ from: startup + 1, to: startup + active, box, ...data });
 
 function normals({ sp = 0, r = 1, d = 1 }) {
@@ -19,7 +21,11 @@ function normals({ sp = 0, r = 1, d = 1 }) {
   return {
     sL: n('sL', '立ち弱', 1, 5, 3, 9, box(66, 108, 76, 30), { dmg: 30, stun: 15, block: 10, kb: 3, lv: 'm', hs: 5, fx: 'l' }, 'jabW', 'jab', { back: 'idle' }),
     sM: n('sM', '立ち中', 2, 8, 3, 14, box(84, 84, 100, 44), { dmg: 55, stun: 20, block: 14, kb: 4.5, lv: 'm', hs: 8, fx: 'm' }, 'kickW', 'kickM', { back: 'idle' }),
-    sH: n('sH', '立ち強', 3, 12, 4, 20, box(96, 104, 122, 56), { dmg: 90, stun: 26, block: 17, kb: 9, lv: 'm', hs: 11, fx: 'h' }, 'heavyW', 'heavy', { back: 'idle', motion: [{ from: S(12) - 3, to: S(12), vx: 6 }] }),
+    sH: n('sH', '立ち強', 3, 12, 4, 20, box(96, 104, 122, 56), { dmg: 90, stun: 26, block: 17, kb: 9, lv: 'm', hs: 11, fx: 'h' }, 'heavyW', 'heavy', {
+      back: 'idle', motion: [{ from: S(12) - 3, to: S(12), vx: 6 }],
+      // 溜め強：強ボタンを押し続けると構えたまま溜め、離すと重い一撃（最大でガード崩し）。ちょんと押せば普通の強攻撃
+      charge: { at: S(12) - 4, max: CHARGE_MAX, btn: 'C', melee: true },
+    }),
     cL: n('cL', 'しゃがみ弱', 1, 5, 3, 9, box(60, 18, 78, 32), { dmg: 25, stun: 14, block: 9, kb: 4, lv: 'l', hs: 5, fx: 'l' }, 'crouch', 'cjab', { crouch: true, back: 'crouch' }),
     cM: n('cM', 'しゃがみ中', 2, 8, 3, 14, box(86, 6, 110, 32), { dmg: 50, stun: 19, block: 13, kb: 6, lv: 'l', hs: 8, fx: 'm' }, 'crouch', 'sweep', { crouch: true, back: 'crouch' }),
     cH: n('cH', '打ち上げ', 3, 11, 4, 24, box(64, 70, 100, 130), { dmg: 70, stun: 44, block: 16, kb: 1.5, lv: 'm', launch: 21, hs: 9, fx: 'h' }, 'crouch', 'upper', { crouch: true, jc: true, back: 'crouch', motion: [{ from: S(11) - 5, to: S(11), vx: 6 }] }),

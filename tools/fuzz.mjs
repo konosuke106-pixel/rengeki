@@ -19,6 +19,7 @@ function inputGen() {
       const r = rnd();
       if (r < 0.3) hold |= [1, 2, 4, 8, 9, 5, 10, 6][Math.floor(rnd() * 8)];
       if (rnd() < 0.15) hold |= 1; // 上を押しっぱなし（滑空など）
+      if (rnd() < 0.1) hold |= [64, 128][Math.floor(rnd() * 2)]; // 強・必殺を押しっぱなし（溜め）
     }
     let m = hold;
     if (rnd() < 0.18) m |= [16, 32, 64, 128, 256, 512, 1024][Math.floor(rnd() * 7)];

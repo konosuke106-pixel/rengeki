@@ -326,7 +326,8 @@ function spawnProjectile(s, p, o, sp) {
       fx: c >= 0.99 ? 's' : c > 0.4 ? 'h' : sp.fx,
       level: c,
     };
-    if (c >= 0.99) { sp.launch = 14; sp.kd = true; }
+    // 最大まで溜めるとガード貫通（ガードもジャストガードもできない）
+    if (c >= 0.99) { sp.launch = 14; sp.kd = true; sp.unblockable = true; }
   }
   s.projs.push({
     owner: p.idx,
@@ -354,7 +355,7 @@ function updateAttack(s, p, o) {
   }
   if (m.warp && p.f === m.warp.f) warpBehind(s, p, o, m.warp.dist);
   // 溜め：決まったコマで必殺ボタンを押し続けている間は、そのコマで止まって力を溜める
-  if (m.charge && p.f === m.charge.at && (current(p) & BTN.S) && p.chargeF < m.charge.max) {
+  if (m.charge && p.f === m.charge.at && (current(p) & BTN[m.charge.btn || 'S']) && p.chargeF < m.charge.max) {
     p.chargeF++;
     p.f--;
     if (p.chargeF === m.charge.max) emit(s, { t: 'chargeMax', x: p.x, y: p.y + 110, by: p.idx });
@@ -712,7 +713,8 @@ const overlap = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.
 
 // ガードできるか。ガードボタンを押している間だけ守れる。下段は下も一緒に、上段は立ったまま。
 // ガード中は振り向かないので、背中側（回り込み・分身）からの攻撃は防げない
-function canBlock(d, originX, lv) {
+function canBlock(d, originX, lv, unblockable) {
+  if (unblockable) return false;
   if (!(NEUTRAL.has(d.st) || d.st === 'block') || d.y > 0) return false;
   const mask = current(d);
   if (!(mask & BTN.G)) return false;
@@ -820,10 +822,27 @@ function tryParry(s, a, d, at, isProj) {
   return true;
 }
 
+// 溜め強：溜めた割合 c（0〜1）だけ重くする。最大ならガード崩し（crush）
+function chargedHit(hb, c) {
+  return {
+    ...hb,
+    dmg: Math.round(hb.dmg * (1 + 0.8 * c)),
+    stun: Math.round((hb.stun || 20) + 10 * c),
+    kb: (hb.kb || 3) * (1 + 0.6 * c),
+    hs: (hb.hs || 6) + Math.round(4 * c),
+    fx: c >= 1 ? 's' : c > 0.4 ? 'h' : hb.fx,
+    crush: c >= 1,
+  };
+}
+
 function applyHit(s, a, d, hb, at, counter, isProj) {
   if (tryParry(s, a, d, at, isProj)) return;
+  if (!isProj && a.st === 'attack' && a.chargeF > 0) {
+    const am = moveOf(a);
+    if (am && am.charge && am.charge.melee) hb = chargedHit(hb, a.chargeF / am.charge.max);
+  }
   const dir = isProj && isProj.dir ? isProj.dir : a.facing;
-  if (canBlock(d, isProj ? isProj.x : a.x, hb.lv)) {
+  if (canBlock(d, isProj ? isProj.x : a.x, hb.lv, hb.unblockable)) {
     // ジャストガード：当たる直前にガードを押し始めていた
     const just = s.t - d.guardT <= JUST_WINDOW;
     d.st = 'block';
@@ -851,6 +870,18 @@ function applyHit(s, a, d, hb, at, counter, isProj) {
         a.frozen = 0;
         emit(s, { t: 'stagger', x: a.x, y: a.y + 150, by: a.idx });
       }
+      return;
+    }
+    // ガード崩し：最大まで溜めた強攻撃はガードを崩し、相手をよろけさせる（ダメージはなし）
+    if (hb.crush) {
+      d.st = 'hit';
+      d.stun = STAGGER;
+      d.crouching = false;
+      d.vx = dir * 4;
+      d.comboHits = 0;
+      d.comboDmg = 0;
+      if (!isProj) { a.hitstop = hs; a.hit = true; }
+      emit(s, { t: 'guardCrush', x: at.x, y: at.y, by: a.idx });
       return;
     }
     if (hb.chip && !CHARS[d.char].noChip) {

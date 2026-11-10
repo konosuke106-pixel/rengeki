@@ -710,6 +710,7 @@ function fillMoveList() {
   const ch = CHARS[app.match.ps[myIdx()].char];
   const rows = SPECIAL_COMMANDS.map(([id, simple, motion]) => [ch.moves[id].name, simple + (ch.moves[id].hint ? `（${ch.moves[id].hint}）` : ''), motion]);
   if (ch.moves.jS) rows.splice(3, 0, [ch.moves.jS.name, 'ジャンプ中に必殺', '']);
+  rows.push(['溜め強', '強を押し続けて離す', '最大でガード崩し']);
   rows.forEach(([name, simple, motion]) => {
     const tr = document.createElement('tr');
     [name, simple, motion].forEach((c) => {
