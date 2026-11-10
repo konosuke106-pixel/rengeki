@@ -1,7 +1,9 @@
 // 宣伝動画を録画して dist/trailer.mp4（録れない環境では .webm）に保存する。
 // 一時サーバーを立て、Edge を画面なしで開いて tools/trailer.html?record=1 を再生し、
 // できた動画をこのサーバーに送ってもらう。再生と同じ時間（約32秒）かかる。
-//   node tools/record-trailer.mjs
+//   node tools/record-trailer.mjs        … dist/trailer.mp4（きれいめ、約50MB）
+//   node tools/record-trailer.mjs small  … dist/trailer-small.mp4（軽め、スマホに送る・SNS用）
+const small = process.argv[2] === 'small';
 import { createServer } from 'node:http';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
@@ -89,7 +91,7 @@ const server = createServer(async (req, res) => {
     for await (const c of req) parts.push(c);
     const ext = (req.headers['content-type'] || '').includes('mp4') ? 'mp4' : 'webm';
     await mkdir(join(root, 'dist'), { recursive: true });
-    const out = join(root, 'dist', `trailer.${ext}`);
+    const out = join(root, 'dist', `trailer${small ? '-small' : ''}.${ext}`);
     let buf = Buffer.concat(parts);
     let note = '';
     if (ext === 'mp4') {
@@ -122,7 +124,7 @@ server.listen(port, '127.0.0.1', () => {
     '--autoplay-policy=no-user-gesture-required', '--disable-background-timer-throttling',
     '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
     '--force-device-scale-factor=1', '--window-size=1280,720',
-    `http://localhost:${port}/tools/trailer.html?record=1`,
+    `http://localhost:${port}/tools/trailer.html?record=1${small ? '&vbr=2500000' : ''}`,
   ], { stdio: 'ignore' });
   setTimeout(() => { console.error('時間内に動画が届きませんでした'); browser?.kill(); process.exit(1); }, 120000);
 });
