@@ -55,8 +55,9 @@ test('マボロシ：相手の後ろに置いた分身の刃は、前を向い�
   // 分身を相手の向こう側に置いておく
   s.ps[0].clone = { x: s.ps[1].x + 160, facing: -1, life: 300 };
   s.ps[0].x = s.ps[1].x - 400;
-  run(s, 2, BTN.S, BTN.R);
-  run(s, 40, 0, BTN.R);
+  run(s, 12, 0, BTN.G);
+  run(s, 2, BTN.S, BTN.G);
+  run(s, 40, 0, BTN.G);
   assert.ok(s.ps[1].hp < CHARS.kagari.hp, '後ろから当たった');
 });
 
@@ -161,10 +162,11 @@ test('カブト：ガード中に必殺ボタンでゲージを使って反撃�
   const s = ready('kabuto', 'kagari');
   s.ps[0].meter = 100;
   // 相手の強攻撃をガードし、ガード中に必殺を押す
-  run(s, 2, BTN.L, BTN.C);
+  run(s, 12, BTN.G);
+  run(s, 2, BTN.G, BTN.C);
   let gc = false;
   for (let i = 0; i < 30 && !gc; i++) {
-    step(s, [s.ps[0].st === 'block' ? BTN.L | BTN.S : BTN.L, 0]);
+    step(s, [s.ps[0].st === 'block' ? BTN.G | BTN.S : BTN.G, 0]);
     gc = s.ps[0].move === 'gc';
   }
   assert.ok(gc, '反撃が出た');
@@ -177,8 +179,9 @@ test('カブト：ゲージが足りないとガード中の反撃は出ない�
   for (const [id, meter] of [['kabuto', 0], ['kagari', METER_MAX]]) {
     const s = ready(id, 'kagari');
     s.ps[0].meter = meter;
-    run(s, 2, BTN.L, BTN.C);
-    for (let i = 0; i < 30; i++) step(s, [s.ps[0].st === 'block' ? BTN.L | BTN.S : BTN.L, 0]);
+    run(s, 12, BTN.G);
+  run(s, 2, BTN.G, BTN.C);
+    for (let i = 0; i < 30; i++) step(s, [s.ps[0].st === 'block' ? BTN.G | BTN.S : BTN.G, 0]);
     assert.notEqual(s.ps[0].move, 'gc', `${id} meter=${meter}`);
   }
 });
@@ -186,8 +189,8 @@ test('カブト：ゲージが足りないとガード中の反撃は出ない�
 test('カブト：ガードしても削られない（他のキャラは削られる）', () => {
   const chip = (id) => {
     const s = ready('goutetsu', id, 120);
-    run(s, 2, BTN.S, BTN.R);
-    run(s, 40, 0, BTN.R);
+    run(s, 2, BTN.S, BTN.G);
+    run(s, 40, 0, BTN.G);
     return CHARS[id].hp - s.ps[1].hp;
   };
   assert.ok(chip('kagari') > 0, '普通は削られる');
@@ -216,11 +219,11 @@ test('ハゼ：当てた相手に時限爆弾が付き、時間が来るとガ�
   const hp = s.ps[1].hp;
   let boomed = false;
   for (let i = 0; i < 120 && !boomed; i++) {
-    step(s, [0, BTN.R]);
+    step(s, [0, BTN.G]);
     boomed = s.ps[1].bombT === 0;
   }
   assert.ok(boomed, '爆発した');
-  run(s, 2, 0, BTN.R);
+  run(s, 2, 0, BTN.G);
   assert.ok(hp - s.ps[1].hp >= 60, `爆発のダメージ ${hp - s.ps[1].hp}`);
 });
 

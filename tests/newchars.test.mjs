@@ -37,11 +37,11 @@ test('ハヤテ：空中で必殺を押すと急降下蹴りになり、しゃ�
   run(s, 3, BTN.U | BTN.R);
   let used = false;
   for (let i = 0; i < 40 && !used; i++) {
-    step(s, [s.ps[0].vy < 6 && s.ps[0].y > 60 ? BTN.S : 0, BTN.R | BTN.D]);
+    step(s, [s.ps[0].vy < 6 && s.ps[0].y > 60 ? BTN.S : 0, BTN.G | BTN.D]);
     used = s.ps[0].move === 'jS';
   }
   assert.ok(used, '空中必殺が出た');
-  for (let i = 0; i < 40 && s.ps[0].y > 0; i++) step(s, [0, BTN.R | BTN.D]);
+  for (let i = 0; i < 40 && s.ps[0].y > 0; i++) step(s, [0, BTN.G | BTN.D]);
   assert.equal(s.ps[0].stats.hits, 1, 'しゃがんで防いでいる相手に当たる');
 });
 
@@ -51,15 +51,16 @@ test('ハヤテ：地上では空中必殺は出ず、普通の必殺になる',
   assert.equal(s.ps[0].move, 'spN');
 });
 
-test('ハヤテ：影走りで相手の背後に回り込み、後ろを押した相手に当たる', () => {
+test('ハヤテ：影走りで相手の背後に回り込み、ガードしていた相手の背中に当たる', () => {
   const s = ready('hayate', 'kagari', 160);
   const startSide = Math.sign(s.ps[1].x - s.ps[0].x);
-  run(s, 2, BTN.R | BTN.S, BTN.R);
-  run(s, 12, 0, BTN.R);
+  run(s, 12, 0, BTN.G);
+  run(s, 2, BTN.R | BTN.S, BTN.G);
+  run(s, 12, 0, BTN.G);
   assert.equal(Math.sign(s.ps[1].x - s.ps[0].x), -startSide, '反対側に出た');
   assert.equal(s.ps[0].facing, -startSide, '相手の方を向いている');
-  run(s, 10, 0, BTN.R);
-  assert.equal(s.ps[0].stats.hits, 1, '元の向きでガードしていた相手に当たる');
+  run(s, 10, 0, BTN.G);
+  assert.equal(s.ps[0].stats.hits, 1, 'ガード中は振り向かないので背中に当たる');
 });
 
 test('ハヤテ：画面端の相手には回り込めず、手前に出る', () => {

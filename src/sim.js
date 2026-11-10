@@ -2,7 +2,7 @@
 // 状態はすべて素のオブジェクトなので複製・巻き戻しができ、将来のオンライン対戦に使える。
 import {
   BTN, ATTACK_MASK, GRAVITY, STAGE_HALF, MAX_SEP, ROUND_FRAMES, WINS_NEEDED, MAX_ROUNDS,
-  METER_MAX, SUPER_COST, BUFFER_FRAMES,
+  METER_MAX, SUPER_COST, BUFFER_FRAMES, JUST_WINDOW, STAGGER,
 } from './config.js';
 import { CHARS } from './characters.js';
 import { STAGE_INFO } from './stages.js';
@@ -15,7 +15,7 @@ const GLIDE_MAX = 90;   // 1回の滑空の長さ（1.5秒）
 // くっつけた時限爆弾が爆発した時の当たり（ガードできない）
 const BOMB_HIT = { dmg: 90, stun: 30, kb: 6, lv: 'm', launch: 14, kd: true, hs: 12, fx: 'h' };
 const DIR_MASK = BTN.U | BTN.D | BTN.L | BTN.R;
-const NEUTRAL = new Set(['idle', 'walk', 'crouch']);
+const NEUTRAL = new Set(['idle', 'walk', 'crouch', 'guard']);
 const NOT_THROWABLE = new Set(['hit', 'hitair', 'block', 'down', 'getup', 'thrown', 'throwing']);
 
 function newFighter(idx, char, palette) {
@@ -29,7 +29,7 @@ function newFighter(idx, char, palette) {
     armorUsed: false, thrownBy: -1, frozen: 0, chargeF: 0, poison: 0, clone: null, bombT: 0, bombBy: -1, airDashed: false, glideT: -1,
     comboHits: 0, comboDmg: 0, idleF: 0,
     hist: new Array(HIST_LEN).fill(0), edge: 0, buf: null,
-    lastTap: null, dashBit: 0, dashT: -99,
+    lastTap: null, dashBit: 0, dashT: -99, guardT: -99,
     wins: 0, stats: { dmg: 0, maxCombo: 0, hits: 0, supers: 0 },
   };
 }
@@ -107,6 +107,7 @@ function recordInput(s, p, mask) {
   p.hist.shift();
   const edge = mask & ~prev;
   p.edge = edge;
+  if (edge & BTN.G) p.guardT = s.t; // ガードを押し始めたコマ（ジャストガードの判定に使う）
   if (edge & ATTACK_MASK) {
     // 技の方向は「ボタンを押した瞬間」のものを覚えておく（ヒットストップ中の先行入力用）
     p.buf = { m: (p.buf ? p.buf.m : 0) | (edge & ATTACK_MASK), dir: mask & DIR_MASK, a: 0 };
@@ -239,10 +240,19 @@ function launchJump(p, dir, mult = 1) {
 
 function groundNeutral(s, p, o) {
   const ch = CHARS[p.char];
-  faceOpponent(p, o);
   const mask = current(p);
+  // ガードを続けている間は振り向かない（回り込まれると背中を見せたまま）
+  if (!(p.st === 'guard' && (mask & BTN.G))) faceOpponent(p, o);
   if (tryMove(s, p, null)) return;
   // 技や着地の硬直が終わる直前に入れたダッシュも出るよう、少し猶予を持たせる
+  // ガードボタンを押している間はその場で構える（歩き・ジャンプ・ダッシュはしない。下も押せばしゃがんで構える）
+  if (mask & BTN.G) {
+    if (p.st !== 'guard') p.f = 0;
+    p.st = 'guard';
+    p.crouching = !!(mask & BTN.D);
+    p.vx *= 0.6;
+    return;
+  }
   if (p.dashBit && s.t - p.dashT <= 8) {
     const dir = p.dashBit === BTN.R ? 1 : -1;
     p.dashBit = 0;
@@ -463,6 +473,7 @@ function updateFighter(s, p, o) {
     case 'idle':
     case 'walk':
     case 'crouch':
+    case 'guard':
       groundNeutral(s, p, o);
       break;
     case 'squat':
@@ -699,11 +710,13 @@ function boxRect(p, b) {
 
 const overlap = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
 
-function canBlock(d, attackerX, lv) {
+// ガードできるか。ガードボタンを押している間だけ守れる。下段は下も一緒に、上段は立ったまま。
+// ガード中は振り向かないので、背中側（回り込み・分身）からの攻撃は防げない
+function canBlock(d, originX, lv) {
   if (!(NEUTRAL.has(d.st) || d.st === 'block') || d.y > 0) return false;
   const mask = current(d);
-  const away = attackerX > d.x ? BTN.L : BTN.R;
-  if (!(mask & away)) return false;
+  if (!(mask & BTN.G)) return false;
+  if ((originX - d.x) * d.facing < -10) return false;
   const low = !!(mask & BTN.D);
   if (lv === 'l' && !low) return false;
   if (lv === 'h' && low) return false;
@@ -810,15 +823,36 @@ function tryParry(s, a, d, at, isProj) {
 function applyHit(s, a, d, hb, at, counter, isProj) {
   if (tryParry(s, a, d, at, isProj)) return;
   const dir = isProj && isProj.dir ? isProj.dir : a.facing;
-  const originX = isProj ? isProj.x : a.x;
-  if (canBlock(d, originX, hb.lv)) {
+  if (canBlock(d, isProj ? isProj.x : a.x, hb.lv)) {
+    // ジャストガード：当たる直前にガードを押し始めていた
+    const just = s.t - d.guardT <= JUST_WINDOW;
     d.st = 'block';
     d.f = 0;
-    d.stun = hb.block || 12;
-    d.vx = dir * Math.max(3.5, hb.kb || 3);
+    d.stun = just ? 6 : hb.block || 12;
+    d.vx = dir * Math.max(3.5, hb.kb || 3) * (just ? 0.4 : 1);
     d.crouching = !!(current(d) & BTN.D);
     const hs = Math.max(4, (hb.hs || 6) - 2);
     d.hitstop = hs;
+    if (just) {
+      d.guardT = -99; // 1回の押し始めで成功するのは1回だけ
+      d.meter = Math.min(METER_MAX, d.meter + 10);
+      emit(s, { t: 'justGuard', x: at.x, y: at.y, by: d.idx });
+      // 地上で殴ってきた相手はよろけて、しばらく動けない（飛び道具・空中からの攻撃はよろけない）
+      if (!isProj && a.y <= 0 && a.st === 'attack') {
+        a.st = 'hit';
+        a.f = 0;
+        a.move = null;
+        a.stun = STAGGER;
+        a.vx = -a.facing * 2;
+        a.hitstop = hs;
+        a.crouching = false;
+        a.comboHits = 0;
+        a.comboDmg = 0;
+        a.frozen = 0;
+        emit(s, { t: 'stagger', x: a.x, y: a.y + 150, by: a.idx });
+      }
+      return;
+    }
     if (hb.chip && !CHARS[d.char].noChip) {
       const chip = s.training ? Math.min(hb.chip, Math.max(0, d.hp - 1)) : Math.min(hb.chip, Math.max(0, d.hp - 1));
       d.hp -= chip;

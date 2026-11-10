@@ -4,11 +4,12 @@ import { BTN } from './config.js';
 const KEYMAP_P1 = {
   KeyW: BTN.U, KeyS: BTN.D, KeyA: BTN.L, KeyD: BTN.R,
   KeyJ: BTN.A, KeyK: BTN.B, KeyL: BTN.C, KeyU: BTN.S, KeyI: BTN.T, KeyO: BTN.X,
+  Space: BTN.G, KeyH: BTN.G,
 };
 const KEYMAP_P2 = {
   ArrowUp: BTN.U, ArrowDown: BTN.D, ArrowLeft: BTN.L, ArrowRight: BTN.R,
-  Numpad1: BTN.A, Numpad2: BTN.B, Numpad3: BTN.C, Numpad4: BTN.S, Numpad5: BTN.T, Numpad6: BTN.X,
-  Comma: BTN.A, Period: BTN.B, Slash: BTN.C, Semicolon: BTN.S, Quote: BTN.T, BracketRight: BTN.X,
+  Numpad1: BTN.A, Numpad2: BTN.B, Numpad3: BTN.C, Numpad4: BTN.S, Numpad5: BTN.T, Numpad6: BTN.X, Numpad0: BTN.G,
+  Comma: BTN.A, Period: BTN.B, Slash: BTN.C, Semicolon: BTN.S, Quote: BTN.T, BracketRight: BTN.X, BracketLeft: BTN.G,
 };
 
 // スティックを素早くはじいたか判定する。ゆっくり倒して歩くのと区別するため、
@@ -54,6 +55,9 @@ export class InputManager {
       if (KEYMAP_P1[e.code] !== undefined || KEYMAP_P2[e.code] !== undefined) {
         // メニューを操作しているときはブラウザ標準の操作に任せる
         if (document.activeElement && document.activeElement.tagName === 'SELECT') return;
+        // スペースは対戦中だけガード。メニューではボタンを押す普通の操作に使う
+        if (e.code === 'Space' && document.body.dataset.screen !== 'battle') return;
+        if (e.code === 'Space' && document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
         e.preventDefault();
         this.keys.add(e.code);
         if (!e.repeat) this.tappedKeys.add(e.code);
@@ -89,6 +93,7 @@ export class InputManager {
     if (b(1)) m |= BTN.S;
     if (b(4)) m |= BTN.T;
     if (b(5)) m |= BTN.X;
+    if (b(6) || b(7)) m |= BTN.G; // 背面のトリガー（LT / RT）でガード
     const pauseBtn = b(9);
     if (pauseBtn && !this.padPauseHeld && this.onPause) this.onPause();
     if (i === 0 || pauseBtn) this.padPauseHeld = pauseBtn;
@@ -114,7 +119,7 @@ export class InputManager {
       m |= this.keyMask(KEYMAP_P1) | this.touchDir | this.touchBtn | this.touchTap;
       this.touchTap = 0;
       if (solo) m |= this.keyMask(KEYMAP_P2);
-      if (this.touchGuard) m = (m & ~(BTN.L | BTN.R)) | this.backBit;
+      if (this.touchGuard) m |= BTN.G;
       if (this.flickQueue.length) m = (m & ~(BTN.L | BTN.R)) | this.flickQueue.shift();
     } else {
       m |= this.keyMask(KEYMAP_P2);

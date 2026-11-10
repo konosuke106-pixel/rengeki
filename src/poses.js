@@ -95,6 +95,7 @@ export function targetPose(p, move) {
     case 'hit':
       return POSES.hit;
     case 'block':
+    case 'guard':
       return p.crouching ? POSES.cblock : POSES.block;
     case 'down':
       return POSES.down;

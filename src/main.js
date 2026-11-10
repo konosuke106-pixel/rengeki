@@ -256,8 +256,19 @@ const GUIDE_STEPS = [
     },
   },
   {
-    title: 'ガード', touch: '相手が攻撃してくるよ。「ガード」ボタンを押し続けて防ごう', keys: '相手が攻撃してくるよ。相手と反対の方向（A か D）を押し続けて防ごう', hint: '[data-guard]', dummy: 'attack',
-    done: (s) => s.events.some((e) => e.t === 'block' && e.by === 1),
+    title: 'ガード', touch: '相手が攻撃してくるよ。「ガード」ボタンを押し続けて防ごう', keys: '相手が攻撃してくるよ。スペースキーを押し続けて防ごう', hint: '[data-guard]', dummy: 'attack',
+    done: (s) => s.events.some((e) => (e.t === 'block' && e.by === 1) || (e.t === 'justGuard' && e.by === 0)),
+  },
+  {
+    title: 'ジャストガード',
+    touch: '攻撃が当たる直前に「ガード」を押し始めよう。成功すると相手がよろけて、反撃のチャンス！（難しければ、何回か防げば次へ進むよ）',
+    keys: '攻撃が当たる直前にスペースキーを押し始めよう。成功すると相手がよろけて、反撃のチャンス！（難しければ、何回か防げば次へ進むよ）',
+    hint: '[data-guard]', dummy: 'attack',
+    done: (s, p, g) => {
+      if (s.events.some((e) => e.t === 'justGuard' && e.by === 0)) return true;
+      g.hold += s.events.filter((e) => e.t === 'block' && e.by === 1).length;
+      return g.hold >= 4;
+    },
   },
   {
     title: 'かわす', touch: 'スティックを相手と反対へ素早くはじこう。後ろへ飛びのいて攻撃をかわせるよ', keys: '相手と反対の方向（A か D）を素早く2回押そう。後ろへ飛びのいて攻撃をかわせるよ', hint: '#stick-base', dummy: 'attack',
@@ -429,8 +440,8 @@ function updateControls(s) {
   if (el.classList.contains('ready') !== ready) el.classList.toggle('ready', ready);
   const opOnRight = op.x > me.x;
   input.backBit = opOnRight ? BTN.L : BTN.R;
-  const left = opOnRight ? 'ガード' : '前へ';
-  const right = opOnRight ? '前へ' : 'ガード';
+  const left = opOnRight ? '後ろへ' : '前へ';
+  const right = opOnRight ? '前へ' : '後ろへ';
   if ($('#stick-left').textContent !== left) {
     $('#stick-left').textContent = left;
     $('#stick-right').textContent = right;

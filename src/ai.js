@@ -1,12 +1,13 @@
 // CPU とトレーニング用ダミー。プレイヤーと同じ「入力」だけを作って操作する。
-import { BTN } from './config.js';
+import { BTN, JUST_WINDOW } from './config.js';
 import { CHARS } from './characters.js';
 import { moveOf } from './sim.js';
 
+// just … 攻撃を見てから当たる直前にガードを押す（＝ジャストガードを狙う）割合
 const LEVELS = {
-  easy: { react: 26, block: 0.25, combo: 0.35, antiAir: 0.1, aggression: 0.35, super: 0.2 },
-  normal: { react: 15, block: 0.55, combo: 0.72, antiAir: 0.4, aggression: 0.55, super: 0.6 },
-  hard: { react: 7, block: 0.85, combo: 0.95, antiAir: 0.8, aggression: 0.72, super: 1 },
+  easy: { react: 26, block: 0.25, just: 0.05, combo: 0.35, antiAir: 0.1, aggression: 0.35, super: 0.2 },
+  normal: { react: 15, block: 0.55, just: 0.25, combo: 0.72, antiAir: 0.4, aggression: 0.55, super: 0.6 },
+  hard: { react: 7, block: 0.85, just: 0.55, combo: 0.95, antiAir: 0.8, aggression: 0.72, super: 1 },
 };
 
 const COMBO_ORDER = [BTN.A, BTN.B, BTN.C, BTN.S];
@@ -86,16 +87,19 @@ export function createCpu(levelName = 'normal', seed = 12345) {
     // 相手の攻撃が見えたらガード
     const opMove = moveOf(op);
     const threat = (op.st === 'attack' && dist < 330) || s.projs.some((q) => q.owner !== idx && Math.abs(q.x - me.x) < 260);
-    if (threat && (me.st === 'idle' || me.st === 'walk' || me.st === 'crouch' || me.st === 'block')) {
+    if (threat && (me.st === 'idle' || me.st === 'walk' || me.st === 'crouch' || me.st === 'guard' || me.st === 'block')) {
       // 当て身を持つキャラは、ときどき構えで受け流す
       if (plan.parry && me.st !== 'block' && op.st === 'attack' && op.f < 5 && rand() < lv.block / 5) {
         wait = lv.react;
         return BTN.S;
       }
-      if (me.st === 'block' || rand() < lv.block / 6) {
-        const firstBox = opMove && opMove.boxes[0];
-        const low = firstBox ? firstBox.lv === 'l' : false;
-        hold = back | (low ? BTN.D : 0);
+      const firstBox = opMove && opMove.boxes[0];
+      const low = firstBox ? firstBox.lv === 'l' : false;
+      const guarding = me.st === 'guard' || me.st === 'block';
+      // 当たる直前に押し始めるとジャストガードになる。弱いCPUほど、そのタイミングでは押さない
+      const late = op.st === 'attack' && firstBox && firstBox.from - op.f <= JUST_WINDOW + 1;
+      if (guarding || (rand() < lv.block / 6 && (!late || rand() < lv.just))) {
+        hold = BTN.G | (low ? BTN.D : 0);
         holdT = 12;
         wait = Math.max(wait, 6);
       }
@@ -122,8 +126,8 @@ export function createCpu(levelName = 'normal', seed = 12345) {
     }
 
     // ガード中の反撃（カブト）：ゲージがあればときどき使う
-    if (me.st === 'block' && ch.guardCancel && me.meter >= 50 && rand() < lv.block / 10) return BTN.S | back;
-    if (me.st === 'block') return hold | back;
+    if (me.st === 'block' && ch.guardCancel && me.meter >= 50 && rand() < lv.block / 10) return BTN.S | BTN.G;
+    if (me.st === 'block') return (hold & BTN.D) | BTN.G;
 
     if (wait > 0 || (me.st !== 'idle' && me.st !== 'walk' && me.st !== 'crouch')) {
       if (me.st === 'air' && dist < 150 && op.y < me.y + 60 && rand() < 0.12) return BTN.B | hold;
@@ -150,8 +154,13 @@ export function createCpu(levelName = 'normal', seed = 12345) {
       if (r < 0.34 * lv.aggression + 0.1) return BTN.A;
       if (r < 0.5 * lv.aggression + 0.18) return BTN.B | (rand() < 0.5 ? BTN.D : 0);
       if (r < 0.6 * lv.aggression + 0.22) return BTN.T;
-      if (r < 0.8) { hold = back; holdT = 18; return hold; }
-      hold = back | BTN.D; holdT = 14;
+      // 近い時は、強いCPUほど前もってガードを固める（立ち／しゃがみ）
+      if (r < 0.8) {
+        hold = rand() < lv.block ? BTN.G | (rand() < 0.4 ? BTN.D : 0) : back;
+        holdT = 18;
+        return hold;
+      }
+      hold = BTN.G | BTN.D; holdT = 14;
       return hold;
     }
     if (dist < 280) {
@@ -161,7 +170,8 @@ export function createCpu(levelName = 'normal', seed = 12345) {
       if (r < 0.48 * lv.aggression) return BTN.B | BTN.D;
       if (r < 0.72) { hold = fwd; holdT = 16; return hold; }
       if (r < 0.85) { hold = BTN.U | fwd; holdT = 3; return hold; }
-      hold = back; holdT = 14;
+      hold = rand() < lv.block ? BTN.G : back;
+      holdT = 14;
       return hold;
     }
     // 下ごしらえ（マボロシの分身など）：離れていて、まだ置いていない時
@@ -187,12 +197,12 @@ export function dummyInput(s, idx, mode) {
   if (mode === 'crouch') return BTN.D;
   if (mode === 'jump') return me.st === 'idle' ? BTN.U : 0;
   if (mode === 'block') {
-    const back = op.x > me.x ? BTN.L : BTN.R;
+    // ガードボタンを押しっぱなし（押し始めは最初だけなので、ジャストガードにはならない）
     const m = moveOf(op);
     let low = false;
     if (m) low = m.boxes.some((b) => b.lv === 'l');
     if (s.projs.some((q) => q.owner !== idx && q.data.lv === 'l')) low = true;
-    return back | (low ? BTN.D : 0);
+    return BTN.G | (low ? BTN.D : 0);
   }
   return 0;
 }

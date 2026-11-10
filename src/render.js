@@ -531,6 +531,17 @@ export class Renderer {
           this.spark(e.x, sy, 14, '#ffd983', 10);
           this.pushText('耐えた', e.x, sy - 40, '#ffd983', 34, -0.05);
           break;
+        case 'justGuard':
+          playSound('tech');
+          this.flash = Math.max(this.flash, 0.3);
+          this.spark(e.x, sy, 18, '#7fe8ff', 11);
+          this.rings.push({ x: e.x, y: sy, r: 10, max: 110, life: 1, color: '#7fe8ff' });
+          this.pushText('ジャスト！', e.x, sy - 60, '#7fe8ff', 44, 0);
+          break;
+        case 'stagger':
+          this.pushText('よろけ', e.x, sy - 90, '#ffe36b', 30, 0.1);
+          for (let k = 0; k < 5; k++) this.spark(e.x + (k - 2) * 16, sy - 60, 2, '#ffe36b', 3);
+          break;
         case 'glide':
           playSound('jump');
           this.spark(e.x, sy, 8, '#ffffff', 5);

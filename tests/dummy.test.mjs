@@ -20,10 +20,12 @@ function runGuardPractice(char, hold) {
 }
 
 for (const char of ['kagari', 'goutetsu', 'shizuku']) {
-  test(`攻撃してくる相手（${char}）は近づいて当て、後ろを押し続ければ防げる`, () => {
+  test(`攻撃してくる相手（${char}）は近づいて当て、ガードボタンを押し続ければ防げる`, () => {
     assert.ok(runGuardPractice(char, () => 0).hit > 0, '何もしないと当たる');
-    const guarded = runGuardPractice(char, (s) => away(s, 0));
+    const guarded = runGuardPractice(char, () => BTN.G);
     assert.ok(guarded.block > 0, 'ガードできる');
     assert.equal(guarded.hit, 0, 'ガード中は当たらない');
+    const backOnly = runGuardPractice(char, (s) => away(s, 0));
+    assert.ok(backOnly.hit > 0, '後ろを押すだけではガードにならない');
   });
 }

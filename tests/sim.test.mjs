@@ -30,22 +30,29 @@ test('立ち攻撃を当てるとHPが減ってヒット状態になる', () => 
   assert.equal(s.ps[1].st, 'hit');
 });
 
-test('後ろを押していればガードできてHPが減らない', () => {
+// ジャストガードにならないよう、攻撃より十分前からガードを押しておく
+function guardFirst(s, mask, n = 12) {
+  for (let i = 0; i < n; i++) step(s, [0, mask]);
+}
+
+test('ガードボタンを押していればガードできてHPが減らない', () => {
   const s = ready();
-  const hold = BTN.R; // P2 は右向きに後退 = 後ろ
-  for (let i = 0; i < 2; i++) step(s, [BTN.A, hold]);
-  for (let i = 0; i < 8; i++) step(s, [0, hold]);
+  guardFirst(s, BTN.G);
+  for (let i = 0; i < 2; i++) step(s, [BTN.A, BTN.G]);
+  for (let i = 0; i < 8; i++) step(s, [0, BTN.G]);
   assert.equal(s.ps[1].hp, CHARS.kagari.hp);
   assert.equal(s.ps[1].st, 'block');
 });
 
 test('下段は立ちガードできず、しゃがみガードはできる', () => {
   const stand = ready();
-  for (let i = 0; i < 12; i++) step(stand, [i < 2 ? BTN.D | BTN.A : BTN.D, BTN.R]);
+  guardFirst(stand, BTN.G);
+  for (let i = 0; i < 12; i++) step(stand, [i < 2 ? BTN.D | BTN.A : BTN.D, BTN.G]);
   assert.ok(stand.ps[1].hp < CHARS.kagari.hp, '立ちガードは下段を防げない');
 
   const crouch = ready();
-  for (let i = 0; i < 12; i++) step(crouch, [i < 2 ? BTN.D | BTN.A : BTN.D, BTN.R | BTN.D]);
+  guardFirst(crouch, BTN.G | BTN.D);
+  for (let i = 0; i < 12; i++) step(crouch, [i < 2 ? BTN.D | BTN.A : BTN.D, BTN.G | BTN.D]);
   assert.equal(crouch.ps[1].hp, CHARS.kagari.hp, 'しゃがみガードで防げる');
 });
 

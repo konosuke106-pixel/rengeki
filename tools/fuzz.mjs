@@ -21,7 +21,8 @@ function inputGen() {
       if (rnd() < 0.15) hold |= 1; // 上を押しっぱなし（滑空など）
     }
     let m = hold;
-    if (rnd() < 0.18) m |= [16, 32, 64, 128, 256, 512][Math.floor(rnd() * 6)];
+    if (rnd() < 0.18) m |= [16, 32, 64, 128, 256, 512, 1024][Math.floor(rnd() * 7)];
+    if (rnd() < 0.08) m |= 1024; // ガード
     if (rnd() < 0.05) m ^= (rnd() < 0.5 ? 4 : 8); // はじき（ダッシュ）
     return m;
   };

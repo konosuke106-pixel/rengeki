@@ -22,5 +22,8 @@ export const BTN = {
   S: 128,  // 必殺
   T: 256,  // 投げ
   X: 512,  // 超必殺
+  G: 1024, // ガード（押している間だけ守る。当たる直前に押し始めるとジャストガード）
 };
+export const JUST_WINDOW = 5;   // ジャストガードの受付（当たる何コマ前までに押し始めればよいか）
+export const STAGGER = 28;      // ジャストガードされた側がよろける長さ
 export const ATTACK_MASK = BTN.A | BTN.B | BTN.C | BTN.S | BTN.T | BTN.X;

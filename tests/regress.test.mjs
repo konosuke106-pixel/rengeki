@@ -68,7 +68,7 @@ test('でたらめな操作を続けても、止まったり固まったりし�
     let t = 0;
     return () => {
       if (t-- <= 0) { t = Math.floor(rnd() * 20); hold = rnd() < 0.4 ? [1, 2, 4, 8, 9, 5][Math.floor(rnd() * 6)] : 0; }
-      return hold | (rnd() < 0.2 ? [16, 32, 64, 128, 256, 512][Math.floor(rnd() * 6)] : 0);
+      return hold | (rnd() < 0.2 ? [16, 32, 64, 128, 256, 512, 1024][Math.floor(rnd() * 7)] : 0) | (rnd() < 0.1 ? 1024 : 0);
     };
   };
   CHAR_IDS.forEach((a, k) => {
