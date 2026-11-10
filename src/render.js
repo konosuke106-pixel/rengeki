@@ -470,6 +470,8 @@ export class Renderer {
     this.superCut = null;
     this.clock = 0;
     this.rainDrops = null;
+    this.trails = [[], []]; // 回避の残像
+    this.trailF = [-1, -1];
     this.snowFlakes = null;
     this.leafList = null;
   }
@@ -745,7 +747,7 @@ export class Renderer {
       const ratio = p.hp / CHARS[p.char].hp;
       if (this.hpShow[i] < ratio) this.hpShow[i] = ratio;
       else if (p.st !== 'hit' && p.st !== 'hitair') this.hpShow[i] += (ratio - this.hpShow[i]) * 0.04;
-      const fast = p.st === 'attack' || p.st === 'hit' || p.st === 'hitair' || p.st === 'block' || p.st === 'thrown' || p.st === 'throwing';
+      const fast = p.st === 'attack' || p.st === 'hit' || p.st === 'hitair' || p.st === 'block' || p.st === 'thrown' || p.st === 'throwing' || p.st === 'evade';
       if (s.freeze <= 0 || i === s.freezeBy) blendPose(this.poses[i], targetPose(p, moveOf(p)), fast ? 0.62 : 0.24);
     });
 
@@ -771,6 +773,9 @@ export class Renderer {
     const inSuper = s.freeze > 0;
     const ps = s.ps;
     const order = ps[0].st === 'attack' && ps[1].st !== 'attack' ? [1, 0] : [0, 1];
+    // 回避中のキャラは手前に描いて、相手の体をすり抜ける様子を見せる
+    if (ps[0].st === 'evade' && ps[1].st !== 'evade') order.splice(0, 2, 1, 0);
+    else if (ps[1].st === 'evade' && ps[0].st !== 'evade') order.splice(0, 2, 0, 1);
     if (inSuper) order.sort((a, b) => (a === s.freezeBy ? 1 : b === s.freezeBy ? -1 : 0));
 
     for (const i of order) this.drawShadow(ps[i]);
@@ -1099,15 +1104,51 @@ export class Renderer {
     ctx.restore();
   }
 
+  // 回避の残像：駆け抜けている間は2コマごとに姿を記録し、キャラの色の影として古い順に薄く描く。
+  // 回避が終わると、残像は1つずつ消えていく
+  drawAfterimages(p, i, ch, pal, evading) {
+    const trail = this.trails[i];
+    // 試合が進んだコマでだけ記録する（一時停止中やヒットストップ中に同じ位置へ重ならないように）
+    const advanced = this.trailF[i] !== p.f;
+    this.trailF[i] = p.f;
+    if (evading && p.f < 18) {
+      if (advanced && p.f % 2 === 0) {
+        trail.push({ x: p.x, y: p.y, facing: p.facing, pose: clonePose(this.poses[i]) });
+        if (trail.length > 4) trail.shift();
+      }
+      // 体の後ろに流れる速さの筋
+      if (advanced) {
+        const back = -p.dashDir;
+        for (const hy of [70, 120]) {
+          this.parts.push({ x: p.x + back * 30, y: GROUND_Y - p.y - hy - Math.random() * 20, vx: back * 9, vy: 0, g: 0, r: 2.5, life: 10, max: 10, color: pal.trim, kind: 'shard', a: back > 0 ? 0 : Math.PI });
+        }
+      }
+    } else if (trail.length && this.clock % 3 === 0) {
+      trail.shift();
+    }
+    if (!trail.length) return;
+    const ctx = this.ctx;
+    trail.forEach((t, k) => {
+      ctx.save();
+      ctx.globalAlpha = 0.12 + 0.26 * (k + 1) / trail.length;
+      paintFighter(ctx, ch, pal, t.pose, t.x, GROUND_Y - t.y, t.facing, { flash: pal.trim, clock: this.clock });
+      ctx.restore();
+    });
+  }
+
   drawFighter(s, p, i) {
     const ch = CHARS[p.char];
     const pal = ch.palettes[p.palette];
     const pose = this.poses[i];
     const whiteFlash = p.hitstop > 0 && (p.st === 'hit' || p.st === 'hitair');
     const blockFlash = p.st === 'block' && p.hitstop > 0;
-    const ghost = p.st !== 'down' && p.st !== 'getup' && (p.inv > 0 || moveInvincible(p)) && this.clock % 4 < 2 && p.st !== 'thrown';
+    // 回避中は点滅させず、通った跡に残像を残す
+    const evading = p.st === 'evade';
+    const ghost = !evading && p.st !== 'down' && p.st !== 'getup' && (p.inv > 0 || moveInvincible(p)) && this.clock % 4 < 2 && p.st !== 'thrown';
+    this.drawAfterimages(p, i, ch, pal, evading);
     this.ctx.save();
     if (ghost) this.ctx.globalAlpha = 0.55;
+    if (evading && p.inv > 0) this.ctx.globalAlpha = 0.88;
     const shakeX = p.hitstop > 0 && (p.st === 'hit' || p.st === 'hitair') ? (this.clock % 2 ? 4 : -4) : 0;
     paintFighter(this.ctx, ch, pal, pose, p.x + shakeX, GROUND_Y - p.y, p.facing, {
       flash: whiteFlash ? '#ffffff' : blockFlash ? '#bfe3ff' : null,
