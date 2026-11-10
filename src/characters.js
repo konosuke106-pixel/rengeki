@@ -672,9 +672,9 @@ export const CHARS = {
     moves: maboroshiMoves,
   },
   tsubasa: {
-    id: 'tsubasa', name: 'ツバサ', kana: '翼', title: '翼の舞手', style: '空中ダッシュと滑空で空から攻める',
+    id: 'tsubasa', name: 'ツバサ', kana: '翼', title: '翼の舞手', style: '空中で同じ方向2回でダッシュ。ジャンプを押し直して押し続けると滑空',
     hp: 900, w: 54, h: 180, walk: 6, back: 5, jump: 20, jumpVx: 6.8, dash: 17, dashF: 13,
-    build: 0.86, airDash: 13, glide: 2.4, stats: { 攻撃: 2, 速度: 5, 体力: 2 }, stage: 'skytower',
+    build: 0.86, airDash: 13, glide: 3, stats: { 攻撃: 2, 速度: 5, 体力: 2 }, stage: 'skytower',
     cpu: { antiAir: 'spD', zone: 'spN', dive: true },
     palettes: [
       { gi: '#3a8ad8', dark: '#1c4a7a', trim: '#f4f0e0', skin: '#f0c8a0', hair: '#f0b030' },

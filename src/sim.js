@@ -11,6 +11,7 @@ const HIST_LEN = 32;
 const POISON_TICK = 6; // 毒で1回に減る体力
 const GC_COST = 50;    // ガード中の反撃に使うゲージ
 const CLONE_LIFE = 300; // 分身が残るコマ数（5秒）
+const GLIDE_MAX = 90;   // 1回の滑空の長さ（1.5秒）
 // くっつけた時限爆弾が爆発した時の当たり（ガードできない）
 const BOMB_HIT = { dmg: 90, stun: 30, kb: 6, lv: 'm', launch: 14, kd: true, hs: 12, fx: 'h' };
 const DIR_MASK = BTN.U | BTN.D | BTN.L | BTN.R;
@@ -25,7 +26,7 @@ function newFighter(idx, char, palette) {
     st: 'idle', f: 0, move: null, used: [], hit: false, blocked: false, chain: 0,
     stun: 0, hitstop: 0, inv: 0, throwInv: 0, landT: 0, jumps: 0, noAct: false,
     kd: false, bounce: false, wallB: false, crouching: false, jumpDir: 0, dashDir: 0,
-    armorUsed: false, thrownBy: -1, frozen: 0, chargeF: 0, poison: 0, clone: null, bombT: 0, bombBy: -1, airDashed: false,
+    armorUsed: false, thrownBy: -1, frozen: 0, chargeF: 0, poison: 0, clone: null, bombT: 0, bombBy: -1, airDashed: false, glideT: -1,
     comboHits: 0, comboDmg: 0, idleF: 0,
     hist: new Array(HIST_LEN).fill(0), edge: 0, buf: null,
     lastTap: null, dashBit: 0, dashT: -99,
@@ -55,7 +56,7 @@ function placeForRound(s) {
       x: i === 0 ? -210 : 210, y: 0, vx: 0, vy: 0, facing: i === 0 ? 1 : -1,
       hp: CHARS[p.char].hp, st: 'idle', f: 0, move: null, used: [], hit: false, blocked: false, chain: 0,
       stun: 0, hitstop: 0, inv: 0, throwInv: 0, landT: 0, jumps: 0, noAct: false, kd: false, bounce: false,
-      wallB: false, crouching: false, armorUsed: false, thrownBy: -1, frozen: 0, chargeF: 0, poison: 0, clone: null, bombT: 0, bombBy: -1, airDashed: false, comboHits: 0, comboDmg: 0, idleF: 0, buf: null,
+      wallB: false, crouching: false, armorUsed: false, thrownBy: -1, frozen: 0, chargeF: 0, poison: 0, clone: null, bombT: 0, bombBy: -1, airDashed: false, glideT: -1, comboHits: 0, comboDmg: 0, idleF: 0, buf: null,
     });
   });
   s.projs = [];
@@ -233,6 +234,7 @@ function launchJump(p, dir, mult = 1) {
   p.jumps = 0;
   p.noAct = false;
   p.airDashed = false;
+  p.glideT = -1;
 }
 
 function groundNeutral(s, p, o) {
@@ -284,6 +286,7 @@ function landed(s, p) {
   p.y = 0;
   p.vy = 0;
   p.airDashed = false;
+  p.glideT = -1;
   emit(s, { t: 'land', x: p.x, by: p.idx });
 }
 
@@ -482,6 +485,11 @@ function updateFighter(s, p, o) {
     }
     case 'air':
       if (!p.noAct && tryMove(s, p, null)) break;
+      // 滑空の開始：空中でもう一度上を押す（1回のジャンプで1回）。ジャンプを押しっぱなしにしただけでは始まらない
+      if (ch.glide && p.glideT === -1 && !p.noAct && (p.edge & BTN.U) && p.f > 3) {
+        p.glideT = GLIDE_MAX;
+        emit(s, { t: 'glide', x: p.x, y: p.y + 90, by: p.idx });
+      }
       // 空中ダッシュ（持っているキャラだけ。1回のジャンプで1回）
       if (ch.airDash && !p.noAct && !p.airDashed && p.dashBit && s.t - p.dashT <= 2) {
         const dir = p.dashBit === BTN.R ? 1 : -1;
@@ -512,11 +520,17 @@ function updateFighter(s, p, o) {
     }
     case 'thrown': {
       const a = s.ps[p.thrownBy];
+      // 投げた側が途中で攻撃を受けるなどして投げが続いていなければ、その場で放す
+      // （放さないと、投げられた側が空中で固まったままになる）
+      if (!a || a.st !== 'throwing') {
+        releaseThrown(p);
+        break;
+      }
       const am = moveOf(a);
       p.x = a.x + a.facing * 62;
       p.y = Math.min(70, p.f * 5);
       p.inv = 2;
-      const canTech = am && !am.boxes[0].noTech && p.f <= 10;
+      const canTech = am && am.boxes[0] && !am.boxes[0].noTech && p.f <= 10;
       if (canTech && p.edge & BTN.T) techThrow(s, a, p);
       break;
     }
@@ -584,9 +598,16 @@ function applyPhysics(s, p) {
   if (airborne) {
     const g = (p.st === 'hitair' ? GRAVITY + Math.min(0.5, p.comboHits * 0.025) : GRAVITY) * (gimOf(s).gravity || 1);
     p.vy -= g;
-    // 滑空：空中で上を押し続けると、ゆっくり落ちる
+    // 滑空：始めてから上を押し続けている間だけ、ゆっくり落ちる。離すか時間切れで終わり
     const glide = CHARS[p.char].glide;
-    if (glide && p.st === 'air' && (current(p) & BTN.U) && p.vy < -glide) p.vy = -glide;
+    if (glide && p.st === 'air' && p.glideT > 0) {
+      if (current(p) & BTN.U) {
+        if (p.vy < -glide) p.vy = -glide;
+        p.glideT--;
+      } else {
+        p.glideT = 0;
+      }
+    }
     p.y += p.vy;
     p.x += p.vx;
     if (p.st === 'hitair' && p.wallB && Math.abs(p.x) >= STAGE_HALF - 2) {
@@ -826,6 +847,25 @@ function applyHit(s, a, d, hb, at, counter, isProj) {
     }
   }
   dealDamage(s, a, d, hb, at, counter, isProj);
+}
+
+// 投げが中断された時に、投げられていた側を自由にする。空中なら落ちながら動けるようにする
+function releaseThrown(p) {
+  p.thrownBy = -1;
+  p.vx = 0;
+  p.vy = 0;
+  p.inv = Math.max(p.inv, 10);
+  p.comboHits = 0;
+  p.comboDmg = 0;
+  if (p.y > 0) {
+    p.st = 'air';
+    p.f = 0;
+    p.noAct = false;
+    p.move = null;
+  } else {
+    p.y = 0;
+    toNeutral(p);
+  }
 }
 
 function techThrow(s, a, d) {

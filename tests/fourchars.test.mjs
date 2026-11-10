@@ -106,26 +106,55 @@ test('ツバサ：着地すると、次のジャンプでまた空中ダッシ�
   assert.equal(s.ps[0].airDashed, false);
 });
 
-test('ツバサ：空中で上を押し続けるとゆっくり落ち、長く飛んでいられる', () => {
-  const airtime = (id, hold) => {
-    const s = ready(id, 'kagari', 700);
-    s.ps[1].x = 800;
-    let minVy = 0;
-    let n = 0;
-    run(s, 2, BTN.U);
-    for (; n < 300; n++) {
-      step(s, [hold ? BTN.U : 0, 0]);
-      if (s.ps[0].st === 'air') minVy = Math.min(minVy, s.ps[0].vy);
-      if (s.ps[0].y <= 0 && n > 10) break;
-    }
-    return { n, minVy };
-  };
-  const glide = airtime('tsubasa', true);
-  const plain = airtime('tsubasa', false);
+// ジャンプして着地するまでのコマ数と、いちばん速く落ちた速さを測る。
+// mode: 'none' 何もしない / 'hold' ジャンプを押しっぱなし / 'glide' 空中でもう一度押して押し続ける
+function airtime(id, mode) {
+  const s = ready(id, 'kagari', 700);
+  s.ps[1].x = 800;
+  let minVy = 0;
+  let n = 0;
+  run(s, 2, BTN.U);
+  for (; n < 400; n++) {
+    let m = 0;
+    if (mode === 'hold') m = BTN.U;
+    if (mode === 'glide') m = n >= 10 && n < 12 ? 0 : n >= 12 ? BTN.U : 0;
+    step(s, [m, 0]);
+    if (s.ps[0].st === 'air' && s.ps[0].vy < 0 && n > 14) minVy = Math.min(minVy, s.ps[0].vy);
+    if (s.ps[0].y <= 0 && n > 10) break;
+  }
+  return { n, minVy };
+}
+
+test('ツバサ：空中でもう一度ジャンプを押し続けると、ゆっくり落ちて長く飛べる', () => {
+  const glide = airtime('tsubasa', 'glide');
+  const plain = airtime('tsubasa', 'none');
   assert.ok(glide.minVy >= -CHARS.tsubasa.glide - 0.01, `落ちる速さ ${glide.minVy}`);
   assert.ok(glide.n > plain.n + 20, `滞空 ${plain.n} → ${glide.n}`);
-  const other = airtime('kagari', true);
+  const other = airtime('kagari', 'glide');
   assert.ok(other.minVy < -5, '他のキャラは滑空しない');
+});
+
+test('ツバサ：ジャンプを押しっぱなしにしただけでは滑空しない（空中で止まって見えない）', () => {
+  const hold = airtime('tsubasa', 'hold');
+  const plain = airtime('tsubasa', 'none');
+  assert.ok(Math.abs(hold.n - plain.n) <= 2, `押しっぱなし ${hold.n} / 何もしない ${plain.n}`);
+});
+
+test('ツバサ：滑空には長さの上限があり、高い所からでも必ず降りてくる', () => {
+  const s = ready('tsubasa', 'kagari', 700);
+  s.ps[1].x = 800;
+  run(s, 2, BTN.U);
+  run(s, 10);
+  run(s, 2, BTN.U); // 空中でもう一度押して滑空を始める
+  s.ps[0].y = 1500; // とても高い所にいることにする
+  let gliding = 0;
+  let n = 0;
+  for (; n < 600 && s.ps[0].y > 0; n++) {
+    step(s, [BTN.U, 0]);
+    if (Math.abs(s.ps[0].vy + CHARS.tsubasa.glide) < 0.01) gliding++;
+  }
+  assert.ok(gliding > 60 && gliding <= 92, `滑空したコマ ${gliding}`);
+  assert.ok(s.ps[0].y <= 0, '着地した');
 });
 
 test('カブト：ガード中に必殺ボタンでゲージを使って反撃する', () => {

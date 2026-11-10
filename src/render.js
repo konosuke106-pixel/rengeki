@@ -531,6 +531,10 @@ export class Renderer {
           this.spark(e.x, sy, 14, '#ffd983', 10);
           this.pushText('耐えた', e.x, sy - 40, '#ffd983', 34, -0.05);
           break;
+        case 'glide':
+          playSound('jump');
+          this.spark(e.x, sy, 8, '#ffffff', 5);
+          break;
         case 'gust':
           playSound('whoosh', { rank: 3 });
           this.pushText('突風', this.camX, 110, '#ffffff', 44, 0);
