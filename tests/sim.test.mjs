@@ -58,7 +58,8 @@ function hitWith(s, mask, maxWait = 40) {
 }
 
 // コンボの締めに使う必殺技。コガラシの「下＋必殺」は罠、ユミの「下＋必殺」は対空の矢なので、前＋必殺で締める
-const COMBO_ENDER = { kogarashi: BTN.R | BTN.S, yumi: BTN.R | BTN.S };
+// マボロシの「下＋必殺」は分身を置く技
+const COMBO_ENDER = { kogarashi: BTN.R | BTN.S, yumi: BTN.R | BTN.S, maboroshi: BTN.R | BTN.S };
 
 test('全キャラ：弱→中→強→必殺の地上コンボがつながる', () => {
   for (const id of CHAR_IDS) {

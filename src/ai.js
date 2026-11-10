@@ -100,6 +100,8 @@ export function createCpu(levelName = 'normal', seed = 12345) {
         wait = Math.max(wait, 6);
       }
     }
+    // ガード中の反撃（カブト）：ゲージがあればときどき使う
+    if (me.st === 'block' && ch.guardCancel && me.meter >= 50 && rand() < lv.block / 10) return BTN.S | back;
     if (me.st === 'block') return hold | back;
 
     if (wait > 0 || (me.st !== 'idle' && me.st !== 'walk' && me.st !== 'crouch')) {
@@ -141,6 +143,8 @@ export function createCpu(levelName = 'normal', seed = 12345) {
       hold = back; holdT = 14;
       return hold;
     }
+    // 下ごしらえ（マボロシの分身など）：離れていて、まだ置いていない時
+    if (plan.setup && !me.clone && r < 0.25) return specialInput(plan.setup, fwd);
     if (r < 0.2 && canZone(s, idx, ch.moves[plan.zone])) return specialInput(plan.zone, fwd);
     if (r < 0.28 && plan.zone !== 'spN' && canZone(s, idx, ch.moves.spN)) return BTN.S;
     if (r < 0.32 && ch.moves.spF.warp) return BTN.S | fwd;

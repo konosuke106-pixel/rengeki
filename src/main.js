@@ -863,19 +863,23 @@ input.bindTouch($('#touch'));
 // [キャラ, 横の位置(0〜1), 奥行き(1=手前), ポーズ, 地面からの高さ(背の何倍)]
 const TITLE_CAST = [
   // 奥の列（小さく、少し上）
-  ['oni', 0.02, 0.74, 'idle', 0],
-  ['shizuku', 0.2, 0.7, 'cast', 0],
-  ['tsuzumi', 0.36, 0.7, 'castW', 0],
-  ['yumi', 0.64, 0.7, 'cast', 0],
-  ['kage', 0.8, 0.72, 'parry', 0],
-  ['goutetsu', 0.98, 0.74, 'idle', 0],
+  ['oni', 0.0, 0.72, 'idle', 0],
+  ['shizuku', 0.14, 0.68, 'cast', 0],
+  ['tsuzumi', 0.28, 0.68, 'castW', 0],
+  ['maboroshi', 0.42, 0.68, 'parry', 0],
+  ['yumi', 0.58, 0.68, 'cast', 0],
+  ['kabuto', 0.72, 0.7, 'parry', 0],
+  ['kage', 0.86, 0.68, 'parry', 0],
+  ['goutetsu', 1.0, 0.72, 'idle', 0],
   // 手前の列
-  ['kusari', 0.08, 0.92, 'jab', 0],
-  ['rai', 0.26, 0.95, 'idle', 0],
-  ['kagari', 0.5, 1.08, 'heavy', 0],
-  ['hayate', 0.7, 0.95, 'jump', 0.18],
-  ['hami', 0.84, 0.92, 'crouch', 0],
-  ['kogarashi', 0.97, 0.95, 'castW', 0],
+  ['kusari', 0.04, 0.9, 'jab', 0],
+  ['rai', 0.2, 0.92, 'idle', 0],
+  ['haze', 0.34, 0.9, 'upper', 0],
+  ['kagari', 0.5, 1.04, 'heavy', 0],
+  ['hayate', 0.64, 0.92, 'jump', 0.18],
+  ['tsubasa', 0.36, 0.86, 'jump', 0.3],
+  ['hami', 0.8, 0.9, 'crouch', 0],
+  ['kogarashi', 0.96, 0.92, 'castW', 0],
 ];
 let titleClock = 0;
 

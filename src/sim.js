@@ -8,6 +8,10 @@ import { CHARS } from './characters.js';
 
 const HIST_LEN = 32;
 const POISON_TICK = 6; // 毒で1回に減る体力
+const GC_COST = 50;    // ガード中の反撃に使うゲージ
+const CLONE_LIFE = 300; // 分身が残るコマ数（5秒）
+// くっつけた時限爆弾が爆発した時の当たり（ガードできない）
+const BOMB_HIT = { dmg: 90, stun: 30, kb: 6, lv: 'm', launch: 14, kd: true, hs: 12, fx: 'h' };
 const DIR_MASK = BTN.U | BTN.D | BTN.L | BTN.R;
 const NEUTRAL = new Set(['idle', 'walk', 'crouch']);
 const NOT_THROWABLE = new Set(['hit', 'hitair', 'block', 'down', 'getup', 'thrown', 'throwing']);
@@ -20,7 +24,7 @@ function newFighter(idx, char, palette) {
     st: 'idle', f: 0, move: null, used: [], hit: false, blocked: false, chain: 0,
     stun: 0, hitstop: 0, inv: 0, throwInv: 0, landT: 0, jumps: 0, noAct: false,
     kd: false, bounce: false, wallB: false, crouching: false, jumpDir: 0, dashDir: 0,
-    armorUsed: false, thrownBy: -1, frozen: 0, chargeF: 0, poison: 0,
+    armorUsed: false, thrownBy: -1, frozen: 0, chargeF: 0, poison: 0, clone: null, bombT: 0, bombBy: -1, airDashed: false,
     comboHits: 0, comboDmg: 0, idleF: 0,
     hist: new Array(HIST_LEN).fill(0), edge: 0, buf: null,
     lastTap: null, dashBit: 0, dashT: -99,
@@ -49,7 +53,7 @@ function placeForRound(s) {
       x: i === 0 ? -210 : 210, y: 0, vx: 0, vy: 0, facing: i === 0 ? 1 : -1,
       hp: CHARS[p.char].hp, st: 'idle', f: 0, move: null, used: [], hit: false, blocked: false, chain: 0,
       stun: 0, hitstop: 0, inv: 0, throwInv: 0, landT: 0, jumps: 0, noAct: false, kd: false, bounce: false,
-      wallB: false, crouching: false, armorUsed: false, thrownBy: -1, frozen: 0, chargeF: 0, poison: 0, comboHits: 0, comboDmg: 0, idleF: 0, buf: null,
+      wallB: false, crouching: false, armorUsed: false, thrownBy: -1, frozen: 0, chargeF: 0, poison: 0, clone: null, bombT: 0, bombBy: -1, airDashed: false, comboHits: 0, comboDmg: 0, idleF: 0, buf: null,
     });
   });
   s.projs = [];
@@ -215,6 +219,7 @@ function launchJump(p, dir, mult = 1) {
   p.crouching = false;
   p.jumps = 0;
   p.noAct = false;
+  p.airDashed = false;
 }
 
 function groundNeutral(s, p, o) {
@@ -265,6 +270,7 @@ function groundNeutral(s, p, o) {
 function landed(s, p) {
   p.y = 0;
   p.vy = 0;
+  p.airDashed = false;
   emit(s, { t: 'land', x: p.x, by: p.idx });
 }
 
@@ -337,8 +343,26 @@ function updateAttack(s, p, o) {
       }
     }
   }
+  // 分身を置く・分身と入れ替わる
+  if (m.makeClone && p.f === m.makeClone) {
+    p.clone = { x: p.x, facing: p.facing, life: CLONE_LIFE };
+    emit(s, { t: 'clone', x: p.x, by: p.idx });
+  }
+  if (m.swapClone && p.f === m.swapClone && p.clone) {
+    const from = p.x;
+    p.x = p.clone.x;
+    p.clone.x = from;
+    p.vx = 0;
+    p.facing = o.x > p.x ? 1 : -1;
+    emit(s, { t: 'warp', x: from, to: p.x, by: p.idx });
+  }
   if (m.spawn) {
-    for (const sp of m.spawn) if (p.f === sp.f) spawnProjectile(s, p, o, sp);
+    for (const sp of m.spawn) {
+      if (p.f !== sp.f) continue;
+      spawnProjectile(s, p, o, sp);
+      // 分身からも同じ飛び道具を出す
+      if (sp.echo && p.clone) spawnProjectile(s, { ...p, x: p.clone.x, y: 0, facing: p.clone.facing }, o, sp);
+    }
   }
   if (p.f >= m.total) {
     p.move = null;
@@ -371,6 +395,14 @@ export function moveInvincible(p) {
   return !!(m && m.inv && p.f >= m.inv[0] && p.f <= m.inv[1]);
 }
 
+// くっついていた時限爆弾が爆発する。ガードはできない
+function explodeBomb(s, p) {
+  const a = s.ps[p.bombBy];
+  p.bombBy = -1;
+  emit(s, { t: 'bomb', x: p.x, y: p.y + 110, by: a.idx });
+  dealDamage(s, a, p, BOMB_HIT, { x: p.x, y: p.y + 110 }, false, { dir: p.x >= a.x ? 1 : -1, x: p.x });
+}
+
 function toAfterMove(p) {
   p.st = 'idle';
   p.f = 0;
@@ -394,6 +426,16 @@ function updateFighter(s, p, o) {
       p.hp = Math.max(1, p.hp - POISON_TICK);
       emit(s, { t: 'poison', x: p.x, y: p.y + 150, by: p.idx });
     }
+  }
+  // 分身：時間で消える。いつも相手の方を向く
+  if (p.clone) {
+    p.clone.facing = o.x > p.clone.x ? 1 : -1;
+    if (--p.clone.life <= 0) p.clone = null;
+  }
+  // 時限爆弾：時間が来たら爆発。無敵中や投げられている間は待つ
+  if (p.bombT > 0) {
+    if (p.inv > 0 || moveInvincible(p) || p.st === 'thrown') p.bombT = Math.max(p.bombT, 1);
+    else if (--p.bombT === 0) explodeBomb(s, p);
   }
   p.f++;
   if (p.inv > 0) p.inv--;
@@ -427,6 +469,16 @@ function updateFighter(s, p, o) {
     }
     case 'air':
       if (!p.noAct && tryMove(s, p, null)) break;
+      // 空中ダッシュ（持っているキャラだけ。1回のジャンプで1回）
+      if (ch.airDash && !p.noAct && !p.airDashed && p.dashBit && s.t - p.dashT <= 2) {
+        const dir = p.dashBit === BTN.R ? 1 : -1;
+        p.dashBit = 0;
+        p.airDashed = true;
+        p.vx = dir * ch.airDash;
+        p.vy = Math.max(p.vy, 3);
+        emit(s, { t: 'airdash', x: p.x, y: p.y + 90, by: p.idx });
+        break;
+      }
       if (!p.noAct && (ch.airJumps || 0) > p.jumps && p.edge & BTN.U && p.f > 3) {
         p.jumps++;
         p.vy = ch.jump * 0.82;
@@ -462,6 +514,13 @@ function updateFighter(s, p, o) {
       if (p.stun <= 0) toNeutral(p);
       break;
     case 'block':
+      // ガード中の反撃：必殺ボタンでゲージを使って反撃技に移る（持っているキャラだけ）
+      if (ch.guardCancel && p.buf && (p.buf.m & BTN.S) && p.meter >= GC_COST) {
+        p.meter -= GC_COST;
+        startMove(s, p, 'gc');
+        emit(s, { t: 'gc', x: p.x, y: p.y + 110, by: p.idx });
+        break;
+      }
       p.stun--;
       p.vx *= 0.86;
       if (p.stun <= 0) { const c = p.comboHits; toNeutral(p); void c; }
@@ -512,6 +571,9 @@ function applyPhysics(s, p) {
   if (airborne) {
     const g = p.st === 'hitair' ? GRAVITY + Math.min(0.5, p.comboHits * 0.025) : GRAVITY;
     p.vy -= g;
+    // 滑空：空中で上を押し続けると、ゆっくり落ちる
+    const glide = CHARS[p.char].glide;
+    if (glide && p.st === 'air' && (current(p) & BTN.U) && p.vy < -glide) p.vy = -glide;
     p.y += p.vy;
     p.x += p.vx;
     if (p.st === 'hitair' && p.wallB && Math.abs(p.x) >= STAGE_HALF - 2) {
@@ -678,6 +740,11 @@ function dealDamage(s, a, d, hb, at, counter, isProj) {
     }
   }
   if (hb.poison) d.poison = Math.max(d.poison, hb.poison);
+  // 時限爆弾をくっつける（すでに付いていれば、早く爆発する方を残す）
+  if (hb.bomb) {
+    d.bombT = d.bombT > 0 ? Math.min(d.bombT, hb.bomb) : hb.bomb;
+    d.bombBy = a.idx;
+  }
 
   const hs = hb.hs || 6;
   d.hitstop = hs;
@@ -718,7 +785,7 @@ function applyHit(s, a, d, hb, at, counter, isProj) {
     d.crouching = !!(current(d) & BTN.D);
     const hs = Math.max(4, (hb.hs || 6) - 2);
     d.hitstop = hs;
-    if (hb.chip) {
+    if (hb.chip && !CHARS[d.char].noChip) {
       const chip = s.training ? Math.min(hb.chip, Math.max(0, d.hp - 1)) : Math.min(hb.chip, Math.max(0, d.hp - 1));
       d.hp -= chip;
     }
@@ -815,6 +882,7 @@ function updateProjectiles(s) {
   for (const q of s.projs) {
     q.age++;
     q.life--;
+    if (q.data.grav) q.vy -= q.data.grav; // 放物線を描く物（投げた爆弾）
     q.x += q.vx;
     q.y += q.vy;
     if (q.y < 0 && q.vy < 0) q.life = 0;
@@ -840,6 +908,15 @@ function updateProjectiles(s) {
     if (d.inv > 0 || moveInvincible(d) || q.age < (q.data.arm || 0)) continue;
     const rect = { x0: q.x - q.w / 2, x1: q.x + q.w / 2, y0: q.y, y1: q.y + q.h };
     if (!overlap(rect, hurtRect(d))) continue;
+    // 弾き返し：構えの最中なら、飛び道具を持ち主へ向けて打ち返す（超必殺と縦に落ちる物は無理）
+    const dm = d.st === 'attack' ? moveOf(d) : null;
+    if (dm && dm.reflect && d.f >= dm.reflect[0] && d.f <= dm.reflect[1] && q.vx !== 0 && !q.data.superFix) {
+      q.owner = d.idx;
+      q.vx = -q.vx;
+      q.x = d.x + Math.sign(q.vx) * (CHARS[d.char].w / 2 + q.w / 2 + 4);
+      emit(s, { t: 'reflect', x: q.x, y: q.y + q.h / 2, by: d.idx });
+      continue;
+    }
     q.life = 0;
     const counter = d.st === 'attack';
     const at = { x: (q.x + d.x) / 2, y: Math.min(q.y + q.h / 2, d.y + 130) };

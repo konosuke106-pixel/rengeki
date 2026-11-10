@@ -403,6 +403,133 @@ const hamiMoves = {
   },
 };
 
+// マボロシ：分身を置き、本体と分身の両方から幻の刃を飛ばす（makeClone / echo / swapClone）
+const maboroshiMoves = {
+  ...normals({ sp: 0, r: 1, d: 0.92 }),
+  spN: {
+    id: 'spN', name: '幻刃', hint: '分身からも出る', rank: 4, total: 38, oneProj: true, boxes: [],
+    anim: [[0, 'castW'], [10, 'cast']],
+    spawn: [{ f: 11, x: 60, y: 90, vx: 11, w: 54, h: 60, life: 70, kind: 'blade', echo: true, dmg: 50, stun: 24, block: 12, kb: 5, lv: 'm', hs: 7, fx: 'm', chip: 4 }],
+  },
+  spD: {
+    id: 'spD', name: '分身', hint: 'その場に5秒残る', rank: 4, total: 30, makeClone: 10, boxes: [],
+    anim: [[0, 'castW'], [9, 'parry'], [22, 'idle']],
+  },
+  spF: {
+    id: 'spF', name: '入れ替わり', hint: '分身がいる時', rank: 4, total: 34, inv: [1, 10], swapClone: 8,
+    boxes: [hitbox(11, 4, [64, 50, 100, 120], { dmg: 60, stun: 26, block: 14, kb: 6, lv: 'm', hs: 9, fx: 'm' })],
+    anim: [[0, 'castW'], [8, 'dashF'], [11, 'heavy'], [22, 'idle']],
+  },
+  super: {
+    id: 'super', name: '幻影乱舞', rank: 5, super: true, total: 64, inv: [1, 14], boxes: [],
+    anim: [[0, 'castW'], [12, 'cast'], [18, 'castW'], [22, 'cast'], [28, 'castW'], [32, 'cast'], [50, 'idle']],
+    spawn: [14, 24, 34].map((f, i, all) => ({
+      f, x: 60, y: 80, vx: 15, w: 70, h: 80, life: 60, kind: 'blade', echo: true, noClash: true, lv: 'm', superFix: true, chip: 5,
+      ...(i === all.length - 1
+        ? { dmg: 110, stun: 50, block: 10, kb: 9, launch: 18, kd: true, hs: 16, fx: 's' }
+        : { dmg: 55, stun: 44, block: 10, kb: 1, hs: 8, fx: 'h' }),
+    })),
+  },
+};
+
+// ツバサ：空中ダッシュと滑空で空を舞う（airDash / glide）
+const tsubasaMoves = {
+  ...normals({ sp: -1, r: 0.95, d: 0.88 }),
+  spN: {
+    id: 'spN', name: '風切り羽', rank: 4, total: 32, oneProj: true, boxes: [],
+    anim: [[0, 'castW'], [8, 'cast']],
+    spawn: [{ f: 9, x: 50, y: 130, vx: 14, w: 50, h: 22, life: 60, kind: 'feather', dmg: 40, stun: 20, block: 10, kb: 4, lv: 'm', hs: 6, fx: 'l', chip: 3 }],
+  },
+  spD: {
+    id: 'spD', name: '舞い上がり', rank: 4, total: 34, inv: [1, 6],
+    boxes: [hitbox(4, 10, [36, 60, 100, 150], { dmg: 70, stun: 40, block: 16, kb: 2, lv: 'm', launch: 19, hs: 9, fx: 'm' })],
+    motion: [{ from: 4, to: 12, vy: 17, vx: 2 }],
+    anim: [[0, 'crouch'], [3, 'rising'], [16, 'jump']],
+  },
+  jS: {
+    id: 'jS', name: '鷹の爪', rank: 3, air: true, total: 40, landT: 16,
+    boxes: [hitbox(5, 35, [30, -30, 80, 80], { dmg: 75, stun: 24, block: 12, kb: 4, lv: 'h', bounce: true, hs: 10, fx: 'h' })],
+    motion: [{ from: 3, to: 40, vx: 6, vy: -18, untilHit: true }],
+    anim: [[0, 'aWind'], [4, 'dive']],
+  },
+  spF: {
+    id: 'spF', name: '突風脚', rank: 4, total: 40,
+    boxes: [hitbox(8, 10, [70, 40, 110, 90], { dmg: 75, stun: 30, block: 16, kb: 8, lv: 'm', launch: 10, kd: true, hs: 10, fx: 'h', chip: 5 })],
+    motion: [{ from: 4, to: 16, vx: 14 }],
+    anim: [[0, 'dashF'], [7, 'kickM'], [24, 'idle']],
+  },
+  super: {
+    id: 'super', name: '天翔', rank: 5, super: true, total: 70, inv: [1, 18],
+    boxes: [10, 15, 20, 25].map((f) => hitbox(f, 3, [50, 40, 120, 170], { dmg: 34, stun: 40, block: 8, kb: 0.5, lv: 'm', launch: 6, hs: 4, fx: 'm', superFix: true, chip: 3 }))
+      .concat([hitbox(38, 6, [40, -40, 130, 140], { dmg: 130, stun: 50, block: 10, kb: 8, lv: 'm', launch: 16, kd: true, hs: 18, fx: 's', superFix: true, chip: 12 })]),
+    motion: [{ from: 8, to: 26, vy: 9, vx: 3 }, { from: 32, to: 44, vy: -20, vx: 4 }],
+    anim: [[0, 'crouch'], [8, 'rising'], [28, 'aWind'], [33, 'dive'], [54, 'idle']],
+  },
+};
+
+// カブト：盾で守る。ガード中に必殺で反撃（guardCancel → gc）、飛び道具を弾き返す（reflect）
+const kabutoMoves = {
+  ...normals({ sp: 1, r: 1.05, d: 1.05 }),
+  spN: {
+    id: 'spN', name: '盾突き', rank: 4, total: 46, armor: [3, 14],
+    boxes: [hitbox(14, 5, [84, 50, 100, 140], { dmg: 95, stun: 30, block: 20, kb: 10, lv: 'm', launch: 10, kd: true, wall: true, hs: 13, fx: 'h', chip: 6 })],
+    motion: [{ from: 10, to: 16, vx: 8 }],
+    anim: [[0, 'heavyW'], [13, 'heavy'], [32, 'idle']],
+  },
+  spD: {
+    id: 'spD', name: '盾弾き', hint: '飛び道具を打ち返す', rank: 4, total: 34, reflect: [3, 20],
+    boxes: [hitbox(6, 8, [60, 40, 80, 150], { dmg: 40, stun: 22, block: 12, kb: 6, lv: 'm', hs: 7, fx: 'm' })],
+    anim: [[0, 'parry'], [22, 'idle']],
+  },
+  spF: {
+    id: 'spF', name: '盾押し', rank: 4, total: 48, armor: [4, 18],
+    boxes: [hitbox(8, 12, [60, 30, 90, 160], { dmg: 80, stun: 28, block: 18, kb: 11, lv: 'm', hs: 11, fx: 'h', chip: 6 })],
+    motion: [{ from: 6, to: 20, vx: 9 }],
+    anim: [[0, 'heavyW'], [6, 'parry'], [26, 'idle']],
+  },
+  // ガード中に必殺ボタンで出る反撃（ゲージ50を使う。コマンドはない）
+  gc: {
+    id: 'gc', name: '返し打ち', rank: 4, total: 30, inv: [1, 12],
+    boxes: [hitbox(5, 4, [70, 40, 110, 150], { dmg: 50, stun: 30, block: 12, kb: 12, lv: 'm', launch: 12, kd: true, hs: 12, fx: 'h' })],
+    anim: [[0, 'parry'], [4, 'heavy'], [18, 'idle']],
+  },
+  super: {
+    id: 'super', name: '城砦突破', rank: 5, super: true, total: 70, inv: [1, 20],
+    boxes: [12, 18, 24].map((f) => hitbox(f, 4, [70, 30, 120, 170], { dmg: 50, stun: 44, block: 8, kb: 1, lv: 'm', hs: 8, fx: 'h', superFix: true, chip: 5 }))
+      .concat([hitbox(34, 5, [80, 20, 140, 180], { dmg: 140, stun: 50, block: 10, kb: 11, lv: 'm', launch: 18, kd: true, wall: true, hs: 18, fx: 's', superFix: true, chip: 12 })]),
+    motion: [{ from: 8, to: 34, vx: 7 }],
+    anim: [[0, 'castW'], [8, 'parry'], [12, 'heavy'], [17, 'parry'], [18, 'heavy'], [24, 'heavy'], [33, 'upper'], [52, 'idle']],
+  },
+};
+
+// ハゼ：当てた相手に時限爆弾をくっつける（bomb）。投げた爆弾は放物線を描く（grav）
+const hazeMoves = {
+  ...normals({ sp: 0, r: 1, d: 0.95 }),
+  spN: {
+    id: 'spN', name: '爆弾投げ', hint: '当たると時限爆弾', rank: 4, total: 40, oneProj: true, boxes: [],
+    anim: [[0, 'castW'], [11, 'upper']],
+    spawn: [{ f: 12, x: 40, y: 150, vx: 7, vy: 9, grav: 0.55, w: 34, h: 34, life: 90, kind: 'bomb', dmg: 30, stun: 22, block: 10, kb: 3, lv: 'm', bomb: 100, hs: 6, fx: 'l', chip: 2 }],
+  },
+  spD: {
+    id: 'spD', name: '目の前爆破', rank: 4, total: 44,
+    boxes: [hitbox(12, 5, [90, 0, 150, 160], { dmg: 95, stun: 34, block: 18, kb: 9, lv: 'm', launch: 14, kd: true, hs: 13, fx: 'h', chip: 8 })],
+    anim: [[0, 'crouch'], [11, 'cast'], [28, 'idle']],
+  },
+  spF: {
+    id: 'spF', name: '導火突進', hint: '当たると時限爆弾', rank: 4, total: 42,
+    boxes: [hitbox(8, 10, [60, 40, 90, 140], { dmg: 55, stun: 28, block: 14, kb: 5, lv: 'm', bomb: 80, hs: 9, fx: 'm', chip: 4 })],
+    motion: [{ from: 4, to: 16, vx: 12 }],
+    anim: [[0, 'dashF'], [8, 'heavy'], [24, 'idle']],
+  },
+  super: {
+    id: 'super', name: '大花火', rank: 5, super: true, total: 66, inv: [1, 16],
+    boxes: [hitbox(12, 4, [70, 30, 110, 150], { dmg: 40, stun: 60, block: 8, kb: 1, lv: 'm', hs: 8, fx: 'm', superFix: true, chip: 3 }),
+      hitbox(30, 6, [60, 0, 260, 260], { dmg: 190, stun: 60, block: 10, kb: 10, lv: 'm', launch: 20, kd: true, hs: 20, fx: 's', superFix: true, chip: 14 })],
+    motion: [{ from: 6, to: 12, vx: 12 }],
+    anim: [[0, 'castW'], [6, 'dashF'], [12, 'heavy'], [20, 'castW'], [29, 'win'], [48, 'idle']],
+  },
+};
+
 export const CHARS = {
   kagari: {
     id: 'kagari', name: 'カガリ', kana: '火', title: '火の拳士', style: '飛び道具と昇炎で攻守が揃う基本形',
@@ -532,6 +659,50 @@ export const CHARS = {
       { gi: '#5a2a6e', dark: '#2e1338', trim: '#7ee08a', skin: '#e2c09a', hair: '#1a1020' },
     ],
     moves: hamiMoves,
+  },
+  maboroshi: {
+    id: 'maboroshi', name: 'マボロシ', kana: '幻', title: '幻の術師', style: '分身を置き、本体と分身で挟み撃ち',
+    hp: 940, w: 56, h: 184, walk: 5.6, back: 4.8, jump: 18.5, jumpVx: 6.4, dash: 16, dashF: 14,
+    build: 0.92, stats: { 攻撃: 3, 速度: 3, 体力: 2 }, stage: 'mirror',
+    cpu: { antiAir: 'spF', zone: 'spN', setup: 'spD' },
+    palettes: [
+      { gi: '#d9d2e9', dark: '#8a7fa8', trim: '#7a4ad8', skin: '#f2d6c0', hair: '#2a2240' },
+      { gi: '#2a2a3a', dark: '#14141e', trim: '#e04a8a', skin: '#f2d6c0', hair: '#e8e0f0' },
+    ],
+    moves: maboroshiMoves,
+  },
+  tsubasa: {
+    id: 'tsubasa', name: 'ツバサ', kana: '翼', title: '翼の舞手', style: '空中ダッシュと滑空で空から攻める',
+    hp: 900, w: 54, h: 180, walk: 6, back: 5, jump: 20, jumpVx: 6.8, dash: 17, dashF: 13,
+    build: 0.86, airDash: 13, glide: 2.4, stats: { 攻撃: 2, 速度: 5, 体力: 2 }, stage: 'skytower',
+    cpu: { antiAir: 'spD', zone: 'spN', dive: true },
+    palettes: [
+      { gi: '#3a8ad8', dark: '#1c4a7a', trim: '#f4f0e0', skin: '#f0c8a0', hair: '#f0b030' },
+      { gi: '#c84a3a', dark: '#6e2018', trim: '#f4f0e0', skin: '#f0c8a0', hair: '#1a1420' },
+    ],
+    moves: tsubasaMoves,
+  },
+  kabuto: {
+    id: 'kabuto', name: 'カブト', kana: '甲', title: '盾の守り手', style: 'ガード中に必殺で反撃。飛び道具を打ち返す',
+    hp: 1100, w: 70, h: 192, walk: 4.8, back: 3.8, jump: 17.5, jumpVx: 5.4, dash: 13, dashF: 16,
+    build: 1.18, guardCancel: true, noChip: true, stats: { 攻撃: 3, 速度: 2, 体力: 5 }, stage: 'castle',
+    cpu: { antiAir: 'spN', poke: 'spF' },
+    palettes: [
+      { gi: '#7a6a3a', dark: '#40361a', trim: '#d8c070', skin: '#e2b48c', hair: '#2a2018' },
+      { gi: '#3a4a5a', dark: '#1c2530', trim: '#c0c8d0', skin: '#e2b48c', hair: '#2a2018' },
+    ],
+    moves: kabutoMoves,
+  },
+  haze: {
+    id: 'haze', name: 'ハゼ', kana: '爆', title: '爆弾職人', style: '時限爆弾をくっつけて吹き飛ばす',
+    hp: 960, w: 58, h: 184, walk: 5.4, back: 4.6, jump: 18.5, jumpVx: 6.2, dash: 15, dashF: 14,
+    build: 0.98, stats: { 攻撃: 4, 速度: 3, 体力: 2 }, stage: 'powder',
+    cpu: { antiAir: 'spD', zone: 'spN', poke: 'spF' },
+    palettes: [
+      { gi: '#d87a2a', dark: '#7a3a10', trim: '#2a2a2a', skin: '#e8b88c', hair: '#c83a2a' },
+      { gi: '#4a4a4a', dark: '#222222', trim: '#f0c030', skin: '#e8b88c', hair: '#f0e0c0' },
+    ],
+    moves: hazeMoves,
   },
 };
 
