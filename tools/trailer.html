@@ -1,0 +1,452 @@
+<!doctype html>
+<!--
+  宣伝動画（横長 1280x720、約32秒）。ゲームの戦闘エンジンと描画をそのまま使い、
+  CPU どうしの試合の見せ場（tools/trailer-scan.mjs で探した場面）を再生して字幕と BGM を重ねる。
+  開発サーバーで http://localhost:5180/tools/trailer.html            … その場で再生（画面を押すと音つき）
+                 http://localhost:5180/tools/trailer.html?still=600  … 600コマ目の静止画（確認用）
+  録画は node tools/record-trailer.mjs（dist/trailer.mp4 ができる）
+-->
+<html lang="ja"><head><meta charset="utf-8">
+<title>連撃 RENGEKI 宣伝動画</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap">
+<style>html, body { margin: 0; background: #000; } canvas { display: block; width: 100vw; max-width: 1280px; aspect-ratio: 16 / 9; }</style>
+</head><body><canvas id="c" width="1280" height="720"></canvas>
+<script type="module">
+import { createMatch, step, cloneState } from '../src/sim.js';
+import { createCpu } from '../src/ai.js';
+import { CHARS } from '../src/characters.js';
+import { POSES } from '../src/poses.js';
+import { Renderer, paintFighter } from '../src/render.js';
+import { audioTap, setMuted, isMuted } from '../src/audio.js';
+
+const params = new URLSearchParams(location.search);
+const STILL = params.has('still') ? Number(params.get('still')) : null;
+const RECORD = params.has('record');
+const W = 1280, H = 720;
+const BAR = 96; // 150BPM で1小節 = 96コマ（1拍24コマ）
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const renderer = new Renderer(canvas);
+renderer.scale = 1;
+renderer.extraX = 0;
+
+const INK = '#15101c', PAPER = '#f5ecd6', GOLD = '#f6c445', RED = '#d9391f';
+const DISPLAY = '"Dela Gothic One", sans-serif';
+const BODY = '"Zen Kaku Gothic New", sans-serif';
+
+// 見せ場。at はその出来事が起きたコマ（試合開始からの step の回数）、from/len は再生する範囲
+const G = (p1, p2, stage, seed) => ({ p1, p2, stage, seed });
+const M = {
+  combo: G('hayate', 'kogarashi', 'snow', [15842, 209462]),
+  kogarashi: G('shizuku', 'kogarashi', 'snow', [31678, 418918]),
+  tsuzumi: G('rai', 'tsuzumi', 'festival', [31679, 418919]),
+  kagari: G('kagari', 'goutetsu', 'foundry', [7919, 104729]),
+  jg: G('kagari', 'goutetsu', 'foundry', [7919, 104729]),
+  evade: G('kagari', 'hayate', 'bamboo', [31676, 418916]),
+  storm: G('kagari', 'rai', 'storm', [23757, 314187]),
+  onirock: G('hayate', 'oni', 'onirock', [31680, 418920]),
+  castle: G('yumi', 'kabuto', 'castle', [31686, 418926]),
+  powder: G('hami', 'haze', 'powder', [31687, 418927]),
+  ko: G('kagari', 'shizuku', 'rain', [15838, 209458]),
+};
+
+const SCENES = [
+  { kind: 'intro', len: 2 * BAR },
+  { kind: 'clip', len: 3 * BAR, match: M.combo, from: 1514 - 30, cap: 'コンボをつなげ', sub: 'CHAIN YOUR COMBOS' },
+  { kind: 'clip', len: BAR, match: M.kogarashi, from: 552 - 12, cap: '超必殺で叩き込め', sub: 'UNLEASH YOUR SUPER' },
+  { kind: 'clip', len: BAR, match: M.tsuzumi, from: 938 - 12, cap: '超必殺で叩き込め', sub: 'UNLEASH YOUR SUPER', keepCap: true },
+  { kind: 'clip', len: BAR, match: M.kagari, from: 1463 - 12, cap: '超必殺で叩き込め', sub: 'UNLEASH YOUR SUPER', keepCap: true },
+  { kind: 'clip', len: 1.5 * BAR, match: M.jg, from: 1376 - 36, cap: 'ジャストガードで崩せ', sub: 'PERFECT GUARD' },
+  { kind: 'clip', len: BAR, match: M.evade, from: 2190 - 24, cap: '転がってかわせ', sub: 'ROLL THROUGH' },
+  { kind: 'cast', len: 2 * BAR },
+  { kind: 'clip', len: BAR / 2, match: M.storm, from: 2040 - 30, cap: '16のステージと仕掛け', sub: '16 STAGES & HAZARDS' },
+  { kind: 'clip', len: BAR / 2, match: M.onirock, from: 806 - 30, cap: '16のステージと仕掛け', sub: '16 STAGES & HAZARDS', keepCap: true },
+  { kind: 'clip', len: BAR / 2, match: M.castle, from: 590 - 30, cap: '16のステージと仕掛け', sub: '16 STAGES & HAZARDS', keepCap: true },
+  { kind: 'clip', len: BAR / 2, match: M.powder, from: 374 - 30, cap: '16のステージと仕掛け', sub: '16 STAGES & HAZARDS', keepCap: true },
+  { kind: 'clip', len: 2.5 * BAR, match: M.ko, from: 5546 - 24, cap: '叩き込め', sub: 'FINISH IT', slowAt: 5708 },
+  { kind: 'end', len: 3 * BAR },
+];
+let start = 0;
+for (const sc of SCENES) { sc.start = start; start += sc.len; }
+const TOTAL = start;
+
+/* ---------- 試合の場面：最初から CPU で進めて、再生する範囲の入力と状態を取っておく ---------- */
+const WARM = 40; // 描画（ポーズや体力表示）をなじませるコマ数
+function prepareClip(sc) {
+  const m = sc.match;
+  const s = createMatch({ p1: m.p1, p2: m.p2, stage: m.stage, gimmicks: true });
+  const cpus = [createCpu('hard', m.seed[0]), createCpu('hard', m.seed[1])];
+  const begin = sc.from - WARM;
+  const inputs = [];
+  let saved = null;
+  for (let f = 0; f < sc.from + sc.len + 10; f++) {
+    if (f === begin) saved = cloneState(s);
+    const inp = [cpus[0](s, 0), cpus[1](s, 1)];
+    if (f >= begin) inputs.push(inp);
+    step(s, inp);
+  }
+  sc.saved = saved;
+  sc.inputs = inputs;
+}
+for (const sc of SCENES) if (sc.kind === 'clip') prepareClip(sc);
+
+let cur = null; // 今再生中の場面 { sc, s, i, local }
+function enterClip(sc) {
+  renderer.reset();
+  renderer.setStage(sc.match.stage);
+  const s = cloneState(sc.saved);
+  const wasMuted = isMuted();
+  setMuted(true);
+  let i = 0;
+  for (; i < WARM; i++) {
+    step(s, sc.inputs[i]);
+    renderer.consume(s.events, s);
+    renderer.tick(s);
+  }
+  setMuted(wasMuted);
+  // 試合の始まりの「第一戦」などの表示は消しておく
+  renderer.banner = null;
+  cur = { sc, s, i, local: 0, slow: 0 };
+}
+function clipStep() {
+  const c = cur;
+  const sc = c.sc;
+  // 決着の一撃の前後だけスロー（2コマに1回だけ進める）
+  const f = sc.from + c.local;
+  const slow = sc.slowAt && f >= sc.slowAt - 8 && f < sc.slowAt + 24;
+  c.local++;
+  if (slow && (c.slow++ % 2 === 0)) { renderer.tick(c.s); return; }
+  const inp = sc.inputs[c.i++];
+  if (!inp) return;
+  step(c.s, inp);
+  renderer.consume(c.s.events, c.s);
+  renderer.tick(c.s);
+}
+
+/* ---------- 文字と飾り ---------- */
+const ease = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+function strokeText(text, x, y, size, fill, { font = DISPLAY, align = 'left', line = 10, spacing = 0, stroke = INK } = {}) {
+  ctx.font = `${size}px ${font}`;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'alphabetic';
+  ctx.letterSpacing = `${spacing}px`;
+  ctx.lineJoin = 'round';
+  if (line) { ctx.lineWidth = line; ctx.strokeStyle = stroke; ctx.strokeText(text, x, y); }
+  ctx.fillStyle = fill;
+  ctx.fillText(text, x, y);
+  ctx.letterSpacing = '0px';
+}
+function caption(sc, t) {
+  const k = sc.keepCap ? 1 : ease(t / 10);
+  const x = -520 + 560 * k;
+  ctx.save();
+  ctx.translate(x, 0);
+  ctx.fillStyle = 'rgba(21,16,28,.86)';
+  ctx.beginPath();
+  ctx.moveTo(0, 548); ctx.lineTo(560, 548); ctx.lineTo(510, 668); ctx.lineTo(0, 668);
+  ctx.fill();
+  ctx.fillStyle = RED;
+  ctx.fillRect(0, 548, 560, 6);
+  strokeText(sc.cap, 40, 622, sc.cap.length > 8 ? 46 : 56, PAPER, { line: 0 });
+  strokeText(sc.sub, 42, 654, 18, GOLD, { font: BODY, line: 0, spacing: 6 });
+  ctx.restore();
+}
+function sunBackdrop(t, sunX = W / 2) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#2a1638');
+  g.addColorStop(0.62, '#a8342a');
+  g.addColorStop(1, '#f2a53a');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(246,196,69,.9)';
+  ctx.beginPath();
+  ctx.arc(sunX, 470 - t * 0.05, 230, 0, Math.PI * 2);
+  ctx.fill();
+  // 遠くの山
+  ctx.fillStyle = '#3a1a30';
+  ctx.beginPath();
+  ctx.moveTo(0, 560);
+  for (let x = 0; x <= W; x += 80) ctx.lineTo(x, 520 + Math.sin(x * 0.011) * 40 + Math.sin(x * 0.031) * 18);
+  ctx.lineTo(W, H); ctx.lineTo(0, H);
+  ctx.fill();
+}
+function brush(x, y, w, h, color, k) {
+  // 筆で払ったような帯（k: 0→1 で左から伸びる）
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  const len = w * ease(k);
+  ctx.moveTo(x, y + h * 0.35);
+  ctx.quadraticCurveTo(x + len * 0.5, y - h * 0.15, x + len, y + h * 0.2);
+  ctx.lineTo(x + len - 10, y + h * 0.8);
+  ctx.quadraticCurveTo(x + len * 0.5, y + h * 1.1, x, y + h * 0.75);
+  ctx.fill();
+  ctx.restore();
+}
+
+/* ---------- 場面ごとの描画 ---------- */
+function drawIntro(t) {
+  ctx.fillStyle = INK;
+  ctx.fillRect(0, 0, W, H);
+  const shake = (t >= 24 && t < 34) || (t >= 48 && t < 58) ? (Math.random() - 0.5) * 14 : 0;
+  ctx.save();
+  ctx.translate(shake, shake * 0.6);
+  if (t >= 12) brush(140, 250, 1000, 200, RED, (t - 12) / 14);
+  if (t >= 24) strokeText('連', 640 - 130 + (1 - ease((t - 24) / 6)) * -80, 440, 230, PAPER, { align: 'center', line: 16 });
+  if (t >= 48) strokeText('撃', 640 + 130 + (1 - ease((t - 48) / 6)) * 80, 440, 230, PAPER, { align: 'center', line: 16 });
+  if (t >= 96) strokeText('RENGEKI', 640, 520, 44, GOLD, { font: DISPLAY, align: 'center', line: 0, spacing: 26 * ease((t - 96) / 16) + 4 });
+  if (t >= 132) {
+    ctx.globalAlpha = ease((t - 132) / 12);
+    strokeText('つなげ、叩き込め。', 640, 600, 34, PAPER, { font: BODY, align: 'center', line: 0, spacing: 8 });
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
+const CAST = ['kagari', 'goutetsu', 'shizuku', 'rai', 'hayate', 'kage', 'kogarashi', 'tsuzumi',
+  'oni', 'kusari', 'yumi', 'hami', 'maboroshi', 'tsubasa', 'kabuto', 'haze'];
+const CAST_POSE = ['heavy', 'idle', 'cast', 'idle', 'jump', 'parry', 'castW', 'castW',
+  'idle', 'jab', 'cast', 'crouch', 'parry', 'jump', 'parry', 'upper'];
+function drawCast(t) {
+  sunBackdrop(t);
+  CAST.forEach((id, n) => {
+    const row = n < 8 ? 0 : 1;
+    const col = n % 8;
+    const appear = n * 6;
+    if (t < appear) return;
+    const k = ease((t - appear) / 10);
+    const ch = CHARS[id];
+    const x = 100 + col * 154 + (row ? 0 : 0);
+    const ground = row ? 650 : 400;
+    const sc = row ? 0.66 : 0.56;
+    ctx.save();
+    ctx.globalAlpha = k;
+    ctx.translate(x, ground - (1 - k) * 60);
+    ctx.scale(sc, sc);
+    paintFighter(ctx, ch, ch.palettes[0], POSES[CAST_POSE[n]], 0, 0, col < 4 ? 1 : -1, { clock: t, vx: CAST_POSE[n] === 'jump' ? 4 : 0 });
+    ctx.restore();
+    strokeText(ch.name, x, ground + 30, 20, PAPER, { font: BODY, align: 'center', line: 5 });
+    ctx.globalAlpha = 1;
+    if (t - appear < 6) {
+      ctx.fillStyle = `rgba(255,250,235,${0.6 * (1 - (t - appear) / 6)})`;
+      ctx.beginPath();
+      ctx.arc(x, ground - 90, 70, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  if (t >= 96) {
+    const k = ease((t - 96) / 12);
+    ctx.fillStyle = 'rgba(21,16,28,.82)';
+    ctx.fillRect(0, 22, W, 92);
+    strokeText('個性の違う16人', 640, 88, 52 * (0.8 + 0.2 * k), PAPER, { align: 'center', line: 0 });
+  }
+}
+
+function drawEnd(t) {
+  sunBackdrop(0, 1010);
+  // 手前に主人公
+  const ch = CHARS.kagari;
+  ctx.save();
+  ctx.translate(1030, 640);
+  ctx.scale(0.95, 0.95);
+  paintFighter(ctx, ch, ch.palettes[0], POSES.heavy, 0, 0, -1, { clock: t });
+  ctx.restore();
+  ctx.fillStyle = 'rgba(21,16,28,.78)';
+  ctx.fillRect(0, 0, 760, H);
+  strokeText('連撃', 70, 250, 190, PAPER, { line: 0 });
+  strokeText('RENGEKI', 78, 312, 38, GOLD, { line: 0, spacing: 20 });
+  const lines = ['スマホでもPCでも、すぐ遊べる', 'CPU対戦・2人対戦・オンライン対戦'];
+  lines.forEach((l, i) => {
+    if (t < 30 + i * 14) return;
+    ctx.globalAlpha = ease((t - 30 - i * 14) / 10);
+    strokeText(l, 78, 400 + i * 50, 32, PAPER, { font: BODY, line: 0 });
+    ctx.globalAlpha = 1;
+  });
+  if (t >= 72) {
+    const k = ease((t - 72) / 10);
+    ctx.save();
+    ctx.translate(78, 520);
+    ctx.scale(0.9 + 0.1 * k, 0.9 + 0.1 * k);
+    ctx.fillStyle = GOLD;
+    ctx.fillRect(0, 0, 560, 86);
+    strokeText('rengeki.pages.dev', 280, 58, 40, INK, { align: 'center', line: 0 });
+    ctx.restore();
+    strokeText('無料・登録なしでブラウザから', 78, 650, 22, PAPER, { font: BODY, line: 0, spacing: 3 });
+  }
+}
+
+/* ---------- 時間の進め方 ---------- */
+let sceneIdx = -1;
+let flash = 0;
+function frame(g) {
+  // g: 動画の通しのコマ番号
+  let n = SCENES.findIndex((sc) => g >= sc.start && g < sc.start + sc.len);
+  if (n < 0) n = SCENES.length - 1;
+  const sc = SCENES[n];
+  if (n !== sceneIdx) {
+    sceneIdx = n;
+    if (sc.kind === 'clip') enterClip(sc);
+    flash = 1;
+  }
+  const t = g - sc.start;
+  if (sc.kind === 'intro') drawIntro(t);
+  else if (sc.kind === 'cast') drawCast(t);
+  else if (sc.kind === 'end') drawEnd(t);
+  else {
+    while (cur.local <= t) clipStep();
+    renderer.draw(cur.s, {});
+    caption(sc, t);
+  }
+  if (flash > 0) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = `rgba(255,250,235,${flash * 0.7})`;
+    ctx.fillRect(0, 0, W, H);
+    flash = Math.max(0, flash - 0.25);
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+/* ---------- 太鼓っぽい BGM（ファイルを使わず合成） ---------- */
+function scheduleMusic(ac, out, t0) {
+  const beat = 60 / 150;
+  const noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  const bus = ac.createGain();
+  bus.gain.value = 0.9;
+  bus.connect(out);
+  const don = (at, vol = 1) => {
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, at);
+    o.frequency.exponentialRampToValueAtTime(46, at + 0.32);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.9 * vol, at + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+    o.connect(g).connect(bus);
+    o.start(at); o.stop(at + 0.55);
+    hiss(at, 0.06, 900, 0.35 * vol);
+  };
+  const hiss = (at, dur, freq, vol, type = 'bandpass') => {
+    const src = ac.createBufferSource();
+    src.buffer = noiseBuf;
+    const f = ac.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(vol, at);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    src.connect(f).connect(g).connect(bus);
+    src.start(at, Math.random() * 0.5); src.stop(at + dur + 0.02);
+  };
+  const ka = (at, vol = 0.35) => hiss(at, 0.05, 3200, vol, 'highpass');
+  const pluck = (at, semi, vol = 0.16, dur = 0.32) => {
+    const f = 293.66 * Math.pow(2, semi / 12);
+    for (const [type, mul, v] of [['triangle', 1, 1], ['sawtooth', 2, 0.25]]) {
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(3200, at);
+      lp.frequency.exponentialRampToValueAtTime(600, at + dur);
+      o.type = type;
+      o.frequency.value = f * mul;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(vol * v, at + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      o.connect(lp).connect(g).connect(bus);
+      o.start(at); o.stop(at + dur + 0.05);
+    }
+  };
+  const crash = (at, vol = 0.5) => hiss(at, 1.4, 6000, vol, 'highpass');
+  const bars = TOTAL / BAR;
+  const RIFF = [12, null, 10, 7, null, 5, 7, null, 12, null, 10, 12, 15, null, 12, null];
+  const RIFF2 = [7, null, 5, 3, null, 0, 3, 5, 7, null, 10, 7, 12, null, null, null];
+  for (let b = 0; b < bars; b++) {
+    const bt = t0 + b * 4 * beat;
+    const sceneAt = SCENES.find((sc) => Math.abs(sc.start - b * BAR) < 1 && !sc.keepCap);
+    if (b < 2) {
+      // 出だし：ロゴの「連」「撃」に合わせた大太鼓
+      if (b === 0) { don(bt + beat, 1.2); don(bt + 2 * beat, 1.2); crash(bt + 2 * beat, 0.25); }
+      else { for (let i = 0; i < 4; i++) ka(bt + i * beat, 0.2); don(bt + 3 * beat + beat / 2, 0.7); }
+      continue;
+    }
+    if (b >= bars - 3) {
+      // 最後：大きく1発鳴らして、余韻
+      if (b === bars - 3) { don(bt, 1.3); crash(bt, 0.5); pluck(bt, 12, 0.2, 1.2); pluck(bt, 0, 0.14, 1.4); }
+      if (b === bars - 2) { don(bt + 2 * beat, 0.6); ka(bt + 3 * beat, 0.2); }
+      continue;
+    }
+    if (sceneAt) crash(bt, 0.32);
+    // 太鼓：ドン・ドドン・カッ
+    don(bt, 1); don(bt + 1.5 * beat, 0.7); don(bt + 2 * beat, 0.9); don(bt + 3.5 * beat, 0.6);
+    for (const e of [1, 2.5, 3]) ka(bt + e * beat, 0.3);
+    for (let i = 0; i < 8; i++) hiss(bt + i * beat / 2, 0.03, 8000, 0.08, 'highpass');
+    const riff = (b % 4 < 2 ? RIFF : RIFF2);
+    for (let i = 0; i < 8; i++) {
+      const semi = riff[(b % 2) * 8 + i];
+      if (semi !== null) pluck(bt + i * beat / 2, semi);
+    }
+    // 低い音の支え
+    pluck(bt, b % 4 === 3 ? -2 : -12, 0.14, 1.4);
+  }
+}
+
+/* ---------- 実行 ---------- */
+await document.fonts.load(`80px ${DISPLAY}`);
+await document.fonts.load(`700 30px ${BODY}`);
+
+if (STILL !== null) {
+  for (let g = 0; g <= STILL; g++) frame(g);
+  document.title = 'ready';
+} else {
+  const play = async () => {
+    const tap = audioTap();
+    const ac = tap && tap.ctx;
+    if (ac && ac.state !== 'running') await ac.resume().catch(() => {});
+    let recorder = null;
+    let videoTrack = null;
+    const chunks = [];
+    let type = '';
+    if (RECORD) {
+      // 描いたコマを1枚ずつ自分で渡す（自動で拾わせると、画面なしの Edge ではコマが落ちる）
+      videoTrack = canvas.captureStream(0).getVideoTracks()[0];
+      const stream = new MediaStream([videoTrack, ...(tap ? tap.stream.getAudioTracks() : [])]);
+      type = ['video/mp4;codecs="avc1.640028,mp4a.40.2"', 'video/mp4', 'video/webm;codecs="vp9,opus"', 'video/webm']
+        .find((t) => MediaRecorder.isTypeSupported(t));
+      recorder = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 8e6, audioBitsPerSecond: 192e3 });
+      recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      recorder.start(1000);
+    }
+    const push = () => { if (videoTrack) videoTrack.requestFrame(); };
+    frame(0);
+    push();
+    // コマ送りはなめらかな performance.now で数える（音の時計は細かく飛ぶため）。BGM は同じ瞬間に始める
+    const t0 = performance.now() / 1000 + 0.15;
+    if (ac && ac.state === 'running') scheduleMusic(ac, tap.master, ac.currentTime + 0.15);
+    let shown = 0;
+    await new Promise((done) => {
+      const loop = () => {
+        const g = Math.floor((performance.now() / 1000 - t0) * 60);
+        while (shown < g && shown < TOTAL) { frame(++shown); push(); }
+        if (shown >= TOTAL) { done(); return; }
+        setTimeout(loop, 4);
+      };
+      loop();
+    });
+    if (recorder) {
+      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => { recorder.onstop = r; recorder.stop(); });
+      const blob = new Blob(chunks, { type });
+      await fetch('/upload', { method: 'POST', headers: { 'Content-Type': type }, body: blob });
+      document.title = 'uploaded';
+    }
+  };
+  if (RECORD) play();
+  else {
+    frame(0);
+    canvas.addEventListener('pointerdown', () => { sceneIdx = -1; play(); }, { once: true });
+  }
+}
+</script></body></html>

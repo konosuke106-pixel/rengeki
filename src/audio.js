@@ -21,6 +21,15 @@ export function unlockAudio() {
   } catch { /* 音が出なくてもゲームは続ける */ }
 }
 
+// 宣伝動画（tools/trailer.html）の録画用：効果音を録音にも流し、BGM を同じ所に足せるようにする
+export function audioTap() {
+  unlockAudio();
+  if (!audioCtx) return null;
+  const dest = audioCtx.createMediaStreamDestination();
+  master.connect(dest);
+  return { ctx: audioCtx, master, stream: dest.stream };
+}
+
 export const isMuted = () => muted;
 export function setMuted(v) {
   muted = v;
