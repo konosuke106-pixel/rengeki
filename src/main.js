@@ -23,6 +23,7 @@ const app = {
   picks: [null, null],
   picking: 0,
   stage: null,     // 選んだステージ。null なら2人目のキャラのステージ
+  gimmicks: true,  // ステージの仕掛けを動かすか
   match: null,
   controllers: [null, null],
   paused: false,
@@ -212,7 +213,7 @@ function buildControllers() {
 function startMatch() {
   const [p1, p2] = app.picks;
   const stage = app.stage || CHARS[p2].stage;
-  app.match = createMatch({ p1, p2, training: app.mode === 'training', stage });
+  app.match = createMatch({ p1, p2, training: app.mode === 'training', stage, gimmicks: app.gimmicks });
   app.controllers = buildControllers();
   renderer.reset();
   renderer.setStage(stage);
@@ -575,7 +576,7 @@ function startNetMatch(msg) {
   app.picks = [msg.p1, msg.p2];
   const relayed = net.link.transport.kind === 'relay';
   net.session = new RollbackSession({
-    state: createMatch({ p1: msg.p1, p2: msg.p2 }),
+    state: createMatch({ p1: msg.p1, p2: msg.p2, gimmicks: true }),
     localIdx: net.host ? 0 : 1,
     send: (m) => net.link.send(m, m.t === 'i'),
     delay: msg.delay,
@@ -809,6 +810,12 @@ bind('#btn-back', () => {
   } else {
     show('#screen-title');
   }
+});
+bind('#btn-gimmick', () => {
+  app.gimmicks = !app.gimmicks;
+  $('#btn-gimmick').textContent = `ギミック：${app.gimmicks ? 'あり' : 'なし'}`;
+  $('#btn-gimmick').classList.toggle('on', app.gimmicks);
+  $('#stage-list').classList.toggle('no-gimmick', !app.gimmicks);
 });
 bind('#btn-stage-back', () => {
   show('#screen-select');

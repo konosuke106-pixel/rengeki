@@ -1,6 +1,7 @@
 // 画面描画。戦闘の結果には一切影響しない（見た目だけの担当）。
 import { VIEW_W, VIEW_H, MAX_VIEW_W, GROUND_Y, STAGE_HALF, METER_MAX, SUPER_COST } from './config.js';
 import { CHARS } from './characters.js';
+import { STAGE_INFO } from './stages.js';
 import { moveOf, activeBoxes, hurtboxOf, moveInvincible } from './sim.js';
 import { POSES, clonePose, blendPose, targetPose } from './poses.js';
 import { playSound } from './audio.js';
@@ -530,6 +531,29 @@ export class Renderer {
           this.spark(e.x, sy, 14, '#ffd983', 10);
           this.pushText('耐えた', e.x, sy - 40, '#ffd983', 34, -0.05);
           break;
+        case 'gust':
+          playSound('whoosh', { rank: 3 });
+          this.pushText('突風', this.camX, 110, '#ffffff', 44, 0);
+          break;
+        case 'drum':
+          playSound('bell');
+          this.pushText('ドン', this.camX, 120, '#ffe36b', 50, 0);
+          break;
+        case 'burn':
+          this.spark(e.x, sy, 16, '#ff8a2a', 9);
+          this.pushText('あちっ', e.x, sy - 50, '#ff8a2a', 34, 0);
+          break;
+        case 'barrel':
+          playSound('s');
+          this.shake = Math.max(this.shake, 14);
+          this.flash = Math.max(this.flash, 0.35);
+          this.spark(e.x, sy, 28, '#ffb030', 14);
+          this.rings.push({ x: e.x, y: sy, r: 10, max: 140, life: 1, color: '#ff6a2a' });
+          this.pushText('ドカン', e.x, sy - 80, '#ff8a2a', 60, -0.06);
+          break;
+        case 'mirror':
+          this.spark(e.x, sy, 10, '#e8dcff', 8);
+          break;
         case 'clone':
           playSound('proj');
           this.spark(e.x, GROUND_Y - 100, 14, '#d9b3ff', 7);
@@ -722,6 +746,7 @@ export class Renderer {
     if (inSuper) order.sort((a, b) => (a === s.freezeBy ? 1 : b === s.freezeBy ? -1 : 0));
 
     for (const i of order) this.drawShadow(ps[i]);
+    this.drawGimmicks(s);
     for (const i of order) this.drawClone(ps[i], i);
     for (const i of order) this.drawFighter(s, ps[i], i);
     for (const q of s.projs) this.drawProjectile(q, s);
@@ -836,6 +861,200 @@ export class Renderer {
     ctx.beginPath();
     ctx.ellipse(p.x, GROUND_Y + 6, 64 * k, 11 * k, 0, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  // ステージの仕掛け：予告の印と、落ちてくる物・横切る物・揺れる荷物・樽
+  drawGimmicks(s) {
+    if (!s.gimmicks || !s.gim) return;
+    const ctx = this.ctx;
+    const G = s.gim;
+    const def = (STAGE_INFO[s.stage] && STAGE_INFO[s.stage].gim) || {};
+    const blink = this.clock % 10 < 5;
+
+    // 突風：予告中は矢印、吹いている間は風の筋
+    if (G.wind) {
+      if (G.wind.warn > 0) {
+        ctx.save();
+        ctx.translate(this.camX, 150);
+        ctx.scale(G.wind.dir, 1);
+        ctx.globalAlpha = blink ? 0.9 : 0.4;
+        ctx.fillStyle = PAPER;
+        ctx.beginPath();
+        ctx.moveTo(-120, -14);
+        ctx.lineTo(60, -14);
+        ctx.lineTo(60, -36);
+        ctx.lineTo(120, 0);
+        ctx.lineTo(60, 36);
+        ctx.lineTo(60, 14);
+        ctx.lineTo(-120, 14);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      } else if (this.clock % 2 === 0) {
+        for (let k = 0; k < 3; k++) {
+          this.parts.push({ x: this.camX - G.wind.dir * (VIEW_W / 2 + 100), y: 120 + Math.random() * 480, vx: G.wind.dir * (24 + Math.random() * 10), vy: 0, g: 0, r: 3, life: 60, max: 60, color: 'rgba(255,255,255,.7)', kind: 'shard', a: G.wind.dir > 0 ? 0 : Math.PI });
+        }
+      }
+    }
+
+    for (const h of G.haz) {
+      const spec = h.type === 'spot' ? def.spot : def.mover;
+      if (!spec) continue;
+      if (h.warn > 0) {
+        // 予告：落ちる場所に点滅する印、横切る物は入ってくる側に矢印
+        ctx.save();
+        ctx.globalAlpha = blink ? 0.85 : 0.35;
+        if (h.type === 'spot') {
+          ctx.fillStyle = h.kind === 'fog' ? '#8fdc3c' : '#ff4a2a';
+          ctx.beginPath();
+          ctx.ellipse(h.x, GROUND_Y + 4, h.w / 2, 12, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.font = `48px ${DISPLAY}`;
+          ctx.textAlign = 'center';
+          ctx.fillText('!', h.x, GROUND_Y - 200);
+        } else {
+          const ex = Math.max(-STAGE_HALF + 30, Math.min(STAGE_HALF - 30, h.x));
+          ctx.translate(ex, GROUND_Y - 70);
+          ctx.scale(Math.sign(h.vx), 1);
+          ctx.fillStyle = '#ff4a2a';
+          ctx.beginPath();
+          ctx.moveTo(-30, -20);
+          ctx.lineTo(20, 0);
+          ctx.lineTo(-30, 20);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+        continue;
+      }
+      const k = h.type === 'spot' ? 1 - h.active / spec.active : 0;
+      ctx.save();
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = INK;
+      if (h.kind === 'bolt') {
+        for (const [w, c] of [[30, INK], [18, '#ffe36b'], [7, '#ffffff']]) {
+          ctx.strokeStyle = c;
+          ctx.lineWidth = w;
+          ctx.beginPath();
+          ctx.moveTo(h.x, 0);
+          for (let i = 1, y = 60; y < GROUND_Y; i++, y += 70) ctx.lineTo(h.x + (i % 2 ? 26 : -26), y);
+          ctx.lineTo(h.x, GROUND_Y);
+          ctx.stroke();
+        }
+        if (k < 0.3) this.flash = Math.max(this.flash, 0.25);
+      } else if (h.kind === 'bamboo') {
+        // 竹：根元を軸に倒れてくる
+        ctx.translate(h.x - 160, GROUND_Y);
+        ctx.rotate(-Math.PI / 2 + Math.min(1, k * 1.6) * (Math.PI / 2 - 0.05));
+        ctx.fillStyle = '#5a8a3a';
+        ctx.fillRect(0, -14, 340, 28);
+        ctx.strokeRect(0, -14, 340, 28);
+        ctx.fillStyle = '#2f4a2c';
+        for (let x = 60; x < 340; x += 70) ctx.fillRect(x, -16, 6, 32);
+      } else if (h.kind === 'tile') {
+        const y = GROUND_Y - 600 * (1 - Math.min(1, k * 1.4));
+        ctx.fillStyle = '#3a3a52';
+        for (const dx of [-16, 14]) {
+          ctx.fillRect(h.x + dx - 14, y - 18, 28, 18);
+          ctx.strokeRect(h.x + dx - 14, y - 18, 28, 18);
+        }
+      } else if (h.kind === 'arrows') {
+        const fall = Math.min(1, k * 1.5);
+        ctx.strokeStyle = '#3a2a1a';
+        ctx.lineWidth = 4;
+        for (let i = 0; i < 9; i++) {
+          const ax = h.x - h.w / 2 + 14 + i * (h.w - 28) / 8;
+          const ay = GROUND_Y - 520 * (1 - fall) - (i % 3) * 30;
+          ctx.beginPath();
+          ctx.moveTo(ax, ay - 60);
+          ctx.lineTo(ax, ay);
+          ctx.stroke();
+          ctx.fillStyle = '#d8dde3';
+          ctx.beginPath();
+          ctx.moveTo(ax - 6, ay - 8);
+          ctx.lineTo(ax, ay + 8);
+          ctx.lineTo(ax + 6, ay - 8);
+          ctx.fill();
+        }
+      } else if (h.kind === 'fog') {
+        ctx.globalAlpha = 0.45 * Math.min(1, h.active / 20);
+        for (let i = 0; i < 7; i++) {
+          ctx.fillStyle = i % 2 ? '#6fae2e' : '#a6e04a';
+          ctx.beginPath();
+          ctx.arc(h.x - h.w / 2 + 25 + i * (h.w - 50) / 6, GROUND_Y - 60 - Math.sin(this.clock * 0.05 + i) * 20, 60, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (h.kind === 'boulder') {
+        ctx.translate(h.x, GROUND_Y - h.h / 2);
+        ctx.rotate(h.x / 45);
+        ctx.fillStyle = '#5a4a40';
+        ctx.beginPath();
+        for (let i = 0; i < 9; i++) {
+          const a = i / 9 * Math.PI * 2;
+          const r = h.h / 2 * (i % 2 ? 0.92 : 1);
+          ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else if (h.kind === 'whirl') {
+        ctx.strokeStyle = 'rgba(255,240,210,.8)';
+        ctx.lineWidth = 4;
+        for (let i = 0; i < 6; i++) {
+          const y = GROUND_Y - 20 - i * 34;
+          const r = 14 + i * 9;
+          ctx.beginPath();
+          ctx.ellipse(h.x + Math.sin(this.clock * 0.3 + i) * 8, y, r, 8, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        if (this.clock % 3 === 0) this.parts.push({ x: h.x, y: GROUND_Y - Math.random() * 180, vx: (Math.random() - 0.5) * 6, vy: -1, g: 0, r: 5, life: 20, max: 20, color: '#e0452b', kind: 'shard', a: Math.random() * 6 });
+      }
+      ctx.restore();
+    }
+
+    // 揺れる荷物：上から綱で吊るされている
+    if (def.crate && G.crateX !== undefined) {
+      const c = def.crate;
+      const top = GROUND_Y - c.y - c.h;
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(G.crateX, top);
+      ctx.stroke();
+      ctx.fillStyle = '#a8563a';
+      ctx.fillRect(G.crateX - c.w / 2, top, c.w, c.h);
+      ctx.lineWidth = 5;
+      ctx.strokeRect(G.crateX - c.w / 2, top, c.w, c.h);
+      ctx.beginPath();
+      ctx.moveTo(G.crateX - c.w / 2, top);
+      ctx.lineTo(G.crateX + c.w / 2, top + c.h);
+      ctx.stroke();
+    }
+
+    // 火薬樽：壊れている間は、元に戻る少し前から薄く見える
+    if (def.barrels) {
+      const b = def.barrels;
+      for (const br of G.barrels) {
+        if (br.cd > 60) continue;
+        ctx.save();
+        ctx.globalAlpha = br.cd > 0 ? 0.35 : 1;
+        ctx.fillStyle = '#c0301e';
+        ctx.fillRect(br.x - b.w / 2, GROUND_Y - b.h, b.w, b.h);
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = INK;
+        ctx.strokeRect(br.x - b.w / 2, GROUND_Y - b.h, b.w, b.h);
+        ctx.fillStyle = INK;
+        ctx.fillRect(br.x - b.w / 2, GROUND_Y - b.h + 12, b.w, 5);
+        ctx.fillRect(br.x - b.w / 2, GROUND_Y - 17, b.w, 5);
+        ctx.fillStyle = '#ffe36b';
+        ctx.font = `28px ${DISPLAY}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('火', br.x, GROUND_Y - b.h / 2);
+        ctx.restore();
+      }
+    }
   }
 
   // 分身：本体と同じ姿で、半透明の紫がかった影として描く

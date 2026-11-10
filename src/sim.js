@@ -5,6 +5,7 @@ import {
   METER_MAX, SUPER_COST, BUFFER_FRAMES,
 } from './config.js';
 import { CHARS } from './characters.js';
+import { STAGE_INFO } from './stages.js';
 
 const HIST_LEN = 32;
 const POISON_TICK = 6; // 毒で1回に減る体力
@@ -32,10 +33,10 @@ function newFighter(idx, char, palette) {
   };
 }
 
-export function createMatch({ p1 = 'kagari', p2 = 'goutetsu', training = false, stage = null } = {}) {
+export function createMatch({ p1 = 'kagari', p2 = 'goutetsu', training = false, stage = null, gimmicks = false } = {}) {
   const s = {
     t: 0, phase: 'intro', phaseF: 0, round: 1, time: ROUND_FRAMES, training,
-    stage: stage || CHARS[p2].stage,
+    stage: stage || CHARS[p2].stage, gimmicks,
     freeze: 0, freezeBy: -1, winner: -1, matchWinner: -1, timeUp: false,
     ps: [newFighter(0, p1, 0), newFighter(1, p2, p1 === p2 ? 1 : 0)],
     projs: [], events: [],
@@ -62,6 +63,17 @@ function placeForRound(s) {
   s.winner = -1;
   s.timeUp = false;
   s.freeze = 0;
+  // ステージの仕掛けの状態。ラウンドごとに作り直す
+  const b = gimOf(s).barrels;
+  s.gim = {
+    t: 0, n: 0, haz: [], wind: null, burnCD: [0, 0], crateCD: [0, 0],
+    barrels: b ? b.xs.map((x) => ({ x, cd: 0 })) : [],
+  };
+}
+
+// このステージの仕掛けの数値（ギミックなしなら空）
+function gimOf(s) {
+  return s.gimmicks ? (STAGE_INFO[s.stage] && STAGE_INFO[s.stage].gim) || {} : {};
 }
 
 export const moveOf = (p) => (p.move ? CHARS[p.char].moves[p.move] : null);
@@ -256,11 +268,11 @@ function groundNeutral(s, p, o) {
   if (mask & forwardBit(p)) {
     if (p.st !== 'walk') p.f = 0;
     p.st = 'walk';
-    p.vx = p.facing * ch.walk;
+    p.vx = p.facing * ch.walk * (gimOf(s).slow || 1);
   } else if (mask & backBit(p)) {
     if (p.st !== 'walk') p.f = 0;
     p.st = 'walk';
-    p.vx = -p.facing * ch.back;
+    p.vx = -p.facing * ch.back * (gimOf(s).slow || 1);
   } else {
     if (p.st !== 'idle') p.f = 0;
     p.st = 'idle';
@@ -463,7 +475,7 @@ function updateFighter(s, p, o) {
     case 'dash': {
       const backDash = p.dashDir !== p.facing;
       const total = backDash ? ch.dashF + 4 : ch.dashF;
-      p.vx = p.dashDir * ch.dash * (p.f < total * 0.7 ? 1 : 0.4);
+      p.vx = p.dashDir * ch.dash * (gimOf(s).slow || 1) * (p.f < total * 0.7 ? 1 : 0.4);
       if (!backDash && p.f > 6 && tryMove(s, p, null)) break;
       if (p.f >= total) toAfterMove(p);
       break;
@@ -511,7 +523,7 @@ function updateFighter(s, p, o) {
     case 'hit':
       p.stun--;
       if (p.frozen > 0) p.frozen--;
-      p.vx *= 0.86;
+      p.vx *= gimOf(s).slip || 0.86; // ぬかるみでは滑る
       if (p.stun <= 0) toNeutral(p);
       break;
     case 'block':
@@ -523,7 +535,7 @@ function updateFighter(s, p, o) {
         break;
       }
       p.stun--;
-      p.vx *= 0.86;
+      p.vx *= gimOf(s).slip || 0.86; // ぬかるみでは滑る
       if (p.stun <= 0) { const c = p.comboHits; toNeutral(p); void c; }
       break;
     case 'hitair':
@@ -570,7 +582,7 @@ function applyPhysics(s, p) {
   const airborne = p.y > 0 || p.vy > 0;
   if (p.st === 'thrown') return;
   if (airborne) {
-    const g = p.st === 'hitair' ? GRAVITY + Math.min(0.5, p.comboHits * 0.025) : GRAVITY;
+    const g = (p.st === 'hitair' ? GRAVITY + Math.min(0.5, p.comboHits * 0.025) : GRAVITY) * (gimOf(s).gravity || 1);
     p.vy -= g;
     // 滑空：空中で上を押し続けると、ゆっくり落ちる
     const glide = CHARS[p.char].glide;
@@ -887,6 +899,12 @@ function updateProjectiles(s) {
     q.x += q.vx;
     q.y += q.vy;
     if (q.y < 0 && q.vy < 0) q.life = 0;
+    // 鏡の壁：画面端で1回だけ跳ね返る
+    if (gimOf(s).mirror && !q.bounced && q.vx !== 0 && Math.abs(q.x) > STAGE_HALF - 10 && Math.sign(q.x) === Math.sign(q.vx)) {
+      q.vx = -q.vx;
+      q.bounced = true;
+      emit(s, { t: 'mirror', x: q.x, y: q.y + q.h / 2 });
+    }
     if (Math.abs(q.x) > STAGE_HALF + 80) q.life = 0;
   }
   // 飛び道具同士の相殺
@@ -925,6 +943,123 @@ function updateProjectiles(s) {
     applyHit(s, a, d, q.data, at, counter, { dir, x: q.x });
   }
   s.projs = s.projs.filter((q) => q.life > 0);
+}
+
+/* ---------- ステージの仕掛け ---------- */
+
+// 仕掛けが当たってよい状態か（無敵・ダウン中・投げられ中は当たらない）
+function exposed(p) {
+  return p.inv === 0 && !moveInvincible(p) && p.st !== 'down' && p.st !== 'getup' && p.st !== 'thrown' && p.st !== 'throwing';
+}
+
+// ステージの仕掛けによる当たり。誰の攻撃でもないので、x の位置から押し出す形にする
+function stageHit(s, d, hb, x, y) {
+  const a = {
+    idx: -1, char: 'kagari', x, y: 0, facing: d.x >= x ? 1 : -1, hp: 1, meter: 0,
+    stats: { dmg: 0, maxCombo: 0, hits: 0, supers: 0 },
+  };
+  dealDamage(s, a, d, hb, { x: d.x, y: y || d.y + 90 }, false, { dir: a.facing, x });
+}
+
+function updateStage(s) {
+  if (!s.gimmicks) return;
+  const g = gimOf(s);
+  const G = s.gim;
+  G.t++;
+
+  // 突風：予告のあと、決まったコマ数だけ2人とも流される（向きは毎回交互）
+  if (g.wind) {
+    const w = g.wind;
+    if (!G.wind && G.t % w.every === 0) {
+      G.wind = { dir: G.n++ % 2 ? -1 : 1, warn: w.warn, len: w.len };
+      emit(s, { t: 'gust', dir: G.wind.dir });
+    }
+    if (G.wind) {
+      if (G.wind.warn > 0) G.wind.warn--;
+      else {
+        for (const f of s.ps) if (f.st !== 'thrown') f.x = Math.max(-STAGE_HALF, Math.min(STAGE_HALF, f.x + G.wind.dir * w.push));
+        if (--G.wind.len <= 0) G.wind = null;
+      }
+    }
+  }
+
+  // 太鼓の拍子：ゲージが増える
+  if (g.drum && G.t % g.drum.every === 0) {
+    for (const f of s.ps) f.meter = Math.min(METER_MAX, f.meter + g.drum.meter);
+    emit(s, { t: 'drum' });
+  }
+
+  // 熱い壁：のけぞり中に画面端へ着くとやけど
+  if (g.hotWall) {
+    s.ps.forEach((f, i) => {
+      if (G.burnCD[i] > 0) { G.burnCD[i]--; return; }
+      if ((f.st === 'hit' || f.st === 'hitair') && f.hitstop === 0 && Math.abs(f.x) >= STAGE_HALF - 30 && f.hp > 0) {
+        G.burnCD[i] = 90;
+        emit(s, { t: 'burn', x: f.x, y: f.y + 100 });
+        stageHit(s, f, g.hotWall, f.x + Math.sign(f.x) * 60);
+      }
+    });
+  }
+
+  // 印の場所に落ちる物（雷・竹・瓦・矢・毒の霧）。2人に交互に狙いを付ける
+  if (g.spot && G.t % g.spot.every === 0) {
+    const target = s.ps[G.n++ % 2];
+    G.haz.push({ type: 'spot', kind: g.spot.kind, x: target.x, w: g.spot.w, h: g.spot.h, warn: g.spot.warn, active: g.spot.active, done: [false, false] });
+  }
+  // 画面を横切る物（岩・つむじ風）。左右から交互に来る
+  if (g.mover && G.t % g.mover.every === 0) {
+    const dir = G.n++ % 2 ? -1 : 1;
+    G.haz.push({ type: 'mover', kind: g.mover.kind, x: -dir * (STAGE_HALF + 40), vx: dir * g.mover.vx, w: g.mover.w, h: g.mover.h, warn: g.mover.warn, done: [false, false] });
+  }
+  for (const h of G.haz) {
+    if (h.warn > 0) { h.warn--; continue; }
+    const spec = h.type === 'spot' ? g.spot : g.mover;
+    if (h.type === 'spot') h.active--;
+    else h.x += h.vx;
+    s.ps.forEach((f, i) => {
+      if (h.done[i] || !exposed(f)) return;
+      if (Math.abs(f.x - h.x) > (h.w + CHARS[f.char].w) / 2 || f.y > h.h) return;
+      h.done[i] = true;
+      if (spec.poison) {
+        f.poison = Math.max(f.poison, spec.poison);
+        emit(s, { t: 'poison', x: f.x, y: f.y + 150, by: f.idx });
+      } else {
+        stageHit(s, f, spec.hit, h.x - (h.vx || 0) * 4);
+      }
+    });
+  }
+  G.haz = G.haz.filter((h) => (h.type === 'spot' ? h.active > 0 : h.warn > 0 || Math.abs(h.x) < STAGE_HALF + 120));
+
+  // 揺れる荷物：左右に揺れ続ける。下端より低くしゃがめばくぐれる
+  if (g.crate) {
+    const c = g.crate;
+    const cx = c.amp * Math.sin((G.t / c.period) * Math.PI * 2);
+    G.crateX = cx;
+    s.ps.forEach((f, i) => {
+      if (G.crateCD[i] > 0) { G.crateCD[i]--; return; }
+      if (!exposed(f)) return;
+      const r = hurtRect(f);
+      if (r.x1 < cx - c.w / 2 || r.x0 > cx + c.w / 2 || r.y1 < c.y || r.y0 > c.y + c.h) return;
+      G.crateCD[i] = 90;
+      stageHit(s, f, c.hit, cx);
+    });
+  }
+
+  // 火薬樽：攻撃や飛び道具が当たると爆発し、周りを吹き飛ばす
+  if (g.barrels) {
+    const b = g.barrels;
+    for (const br of G.barrels) {
+      if (br.cd > 0) { br.cd--; continue; }
+      const rect = { x0: br.x - b.w / 2, x1: br.x + b.w / 2, y0: 0, y1: b.h };
+      // 相手に当たって使用済みになった判定でも、出ている間は樽を叩ける
+      const struck = s.ps.some((f) => f.st === 'attack' && moveOf(f).boxes.some((hb) => !hb.throw && f.f >= hb.from && f.f <= hb.to && overlap(boxRect(f, hb), rect)))
+        || s.projs.some((pr) => overlap({ x0: pr.x - pr.w / 2, x1: pr.x + pr.w / 2, y0: pr.y, y1: pr.y + pr.h }, rect));
+      if (!struck) continue;
+      br.cd = b.respawn;
+      emit(s, { t: 'barrel', x: br.x, y: 60 });
+      for (const f of s.ps) if (exposed(f) && Math.abs(f.x - br.x) < b.blast / 2 && f.y < 200) stageHit(s, f, b.hit, br.x);
+    }
+  }
 }
 
 function pushApart(s) {
@@ -1051,6 +1186,7 @@ export function step(s, inputs) {
   pushApart(s);
   resolveMelee(s);
   updateProjectiles(s);
+  if (s.phase === 'fight') updateStage(s);
   updatePhase(s);
   return s;
 }

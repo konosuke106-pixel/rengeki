@@ -100,6 +100,27 @@ export function createCpu(levelName = 'normal', seed = 12345) {
         wait = Math.max(wait, 6);
       }
     }
+    // ステージの仕掛けをよける：印から離れる、横切る物は跳ぶ、揺れる荷物の下ではしゃがむ
+    const free = me.st === 'idle' || me.st === 'walk' || me.st === 'crouch';
+    if (s.gimmicks && s.gim && free && rand() < lv.block + 0.2) {
+      for (const h of s.gim.haz) {
+        if (h.type === 'spot' && h.warn > 0 && Math.abs(h.x - me.x) < h.w / 2 + 50) {
+          const away = me.x < h.x || (me.x === h.x && me.x > 0) ? BTN.L : BTN.R;
+          hold = away;
+          holdT = 8;
+          return hold;
+        }
+        if (h.type === 'mover' && h.warn === 0 && Math.sign(me.x - h.x) === Math.sign(h.vx) && Math.abs(me.x - h.x) < 150 && me.y === 0) {
+          return BTN.U;
+        }
+      }
+      if (s.gim.crateX !== undefined && Math.abs(s.gim.crateX - me.x) < 160) {
+        hold = BTN.D | back;
+        holdT = 6;
+        return hold;
+      }
+    }
+
     // ガード中の反撃（カブト）：ゲージがあればときどき使う
     if (me.st === 'block' && ch.guardCancel && me.meter >= 50 && rand() < lv.block / 10) return BTN.S | back;
     if (me.st === 'block') return hold | back;
