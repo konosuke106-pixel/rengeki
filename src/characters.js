@@ -256,6 +256,153 @@ const kogarashiMoves = {
   },
 };
 
+// ツヅミ：必殺ボタンを押し続けて溜め、音の衝撃波を放つ
+const tsuzumiMoves = {
+  ...normals({ sp: 0, r: 1, d: 0.95 }),
+  spN: {
+    id: 'spN', name: '響撃', hint: '押し続けて溜める', rank: 4, total: 44, oneProj: true, boxes: [], charge: { at: 8, max: 70 },
+    anim: [[0, 'castW'], [11, 'cast']],
+    spawn: [{ f: 12, x: 60, y: 60, vx: 9, w: 56, h: 90, life: 80, kind: 'sound', charged: true, dmg: 50, stun: 22, block: 12, kb: 5, lv: 'm', hs: 7, fx: 'm', chip: 4 }],
+  },
+  spD: {
+    id: 'spD', name: '大鳴動', rank: 4, total: 46, inv: [1, 6],
+    boxes: [hitbox(10, 5, [0, 0, 240, 170], { dmg: 80, stun: 36, block: 16, kb: 7, lv: 'm', launch: 15, kd: true, hs: 11, fx: 'h' })],
+    anim: [[0, 'aWind'], [9, 'slam'], [30, 'crouch']],
+  },
+  spF: {
+    id: 'spF', name: '乱れ打ち', rank: 4, total: 42,
+    boxes: [6, 10, 14].map((f) => hitbox(f, 2, [72, 60, 100, 100], { dmg: 22, stun: 26, block: 8, kb: 1, lv: 'm', hs: 4, fx: 'l' }))
+      .concat([hitbox(19, 3, [80, 60, 110, 110], { dmg: 45, stun: 30, block: 14, kb: 7, lv: 'm', launch: 12, kd: true, hs: 10, fx: 'h', chip: 4 })]),
+    motion: [{ from: 3, to: 18, vx: 7 }],
+    anim: [[0, 'jabW'], [6, 'jab'], [9, 'heavy'], [13, 'jab'], [18, 'heavy'], [30, 'idle']],
+  },
+  super: {
+    id: 'super', name: '大太鼓', rank: 5, super: true, total: 60, inv: [1, 16], boxes: [],
+    anim: [[0, 'aWind'], [14, 'slam'], [44, 'idle']],
+    spawn: [{ f: 16, x: 60, y: 0, vx: 13, w: 130, h: 260, life: 70, kind: 'sound', noClash: true, dmg: 230, stun: 60, block: 10, kb: 9, lv: 'm', launch: 18, kd: true, hs: 18, fx: 's', superFix: true, chip: 14, level: 1 }],
+  },
+};
+
+// オニ：遅くて重い。体力が減るほど攻撃が強くなる（rage）
+const oniMoves = {
+  ...normals({ sp: 2, r: 1.15, d: 1.2 }),
+  spN: {
+    id: 'spN', name: '金棒落とし', rank: 4, total: 52, armor: [4, 16],
+    boxes: [hitbox(18, 5, [100, 0, 150, 170], { dmg: 130, stun: 30, block: 22, kb: 8, lv: 'm', launch: 12, kd: true, hs: 14, fx: 'h', chip: 10 })],
+    anim: [[0, 'aWind'], [17, 'slam'], [36, 'idle']],
+  },
+  spD: {
+    id: 'spD', name: '鬼頭突き', rank: 4, total: 44, inv: [1, 8],
+    boxes: [hitbox(6, 6, [40, 90, 120, 150], { dmg: 100, stun: 40, block: 16, kb: 3, lv: 'm', launch: 18, kd: true, hs: 12, fx: 'h' })],
+    anim: [[0, 'crouch'], [5, 'upper'], [24, 'idle']],
+  },
+  spF: {
+    id: 'spF', name: '鬼突進', rank: 4, total: 50, armor: [3, 20],
+    boxes: [hitbox(8, 14, [60, 40, 90, 150], { dmg: 110, stun: 30, block: 18, kb: 9, lv: 'm', launch: 10, kd: true, wall: true, hs: 13, fx: 'h', chip: 8 })],
+    motion: [{ from: 6, to: 22, vx: 11 }],
+    anim: [[0, 'heavyW'], [6, 'dashF'], [24, 'idle']],
+  },
+  super: {
+    id: 'super', name: '鬼神乱舞', rank: 5, super: true, total: 72, inv: [1, 14],
+    boxes: [
+      hitbox(14, 4, [80, 40, 140, 150], { dmg: 70, stun: 50, block: 8, kb: 1, lv: 'm', hs: 10, fx: 'h', superFix: true, chip: 6 }),
+      hitbox(26, 4, [80, 40, 140, 150], { dmg: 70, stun: 50, block: 8, kb: 1, lv: 'm', hs: 10, fx: 'h', superFix: true, chip: 6 }),
+      hitbox(38, 5, [90, 0, 160, 180], { dmg: 160, stun: 60, block: 10, kb: 10, lv: 'm', launch: 20, kd: true, wall: true, hs: 20, fx: 's', superFix: true, chip: 14 }),
+    ],
+    motion: [{ from: 8, to: 16, vx: 15 }, { from: 22, to: 26, vx: 4 }],
+    anim: [[0, 'castW'], [8, 'dashF'], [13, 'heavy'], [20, 'heavyW'], [25, 'heavy'], [32, 'aWind'], [37, 'slam'], [56, 'idle']],
+  },
+};
+
+// クサリ：鎖鎌で遠くの相手を引き寄せる（pull）
+const kusariMoves = {
+  ...normals({ sp: 0, r: 1.08, d: 0.95 }),
+  spN: {
+    id: 'spN', name: '鎖投げ', rank: 4, total: 42, chain: true,
+    boxes: [hitbox(12, 5, [230, 90, 210, 36], { dmg: 50, stun: 40, block: 12, kb: 0, lv: 'm', pull: true, hs: 9, fx: 'm', chip: 3 })],
+    anim: [[0, 'castW'], [11, 'jab'], [30, 'idle']],
+  },
+  spD: {
+    id: 'spD', name: '回転鎌', rank: 4, total: 38, inv: [1, 6], chain: true,
+    boxes: [hitbox(6, 12, [0, 110, 220, 120], { dmg: 75, stun: 36, block: 14, kb: 3, lv: 'm', launch: 16, hs: 9, fx: 'm' })],
+    anim: [[0, 'crouch'], [5, 'win'], [20, 'idle']],
+  },
+  spF: {
+    id: 'spF', name: '鎖払い', rank: 4, total: 44, crouch: true, chain: true,
+    boxes: [hitbox(12, 5, [200, 4, 220, 34], { dmg: 55, stun: 36, block: 12, kb: 0, lv: 'l', pull: true, hs: 9, fx: 'm', chip: 3 })],
+    anim: [[0, 'crouch'], [11, 'sweep'], [28, 'crouch']],
+  },
+  super: {
+    id: 'super', name: '鎖縛り', rank: 5, super: true, total: 74, inv: [1, 12], chain: true,
+    boxes: [
+      hitbox(14, 5, [250, 50, 280, 130], { dmg: 40, stun: 60, block: 8, kb: 0, lv: 'm', pull: true, hs: 8, fx: 'm', superFix: true, chip: 3 }),
+      ...[38, 44].map((f) => hitbox(f, 3, [70, 40, 130, 150], { dmg: 50, stun: 40, block: 8, kb: 1, lv: 'm', hs: 6, fx: 'm', superFix: true, chip: 4 })),
+      hitbox(52, 4, [80, 40, 140, 160], { dmg: 140, stun: 50, block: 10, kb: 9, lv: 'm', launch: 20, kd: true, wall: true, hs: 18, fx: 's', superFix: true, chip: 12 }),
+    ],
+    anim: [[0, 'castW'], [13, 'jab'], [36, 'heavyW'], [38, 'heavy'], [44, 'kickM'], [51, 'upper'], [64, 'idle']],
+  },
+};
+
+// ユミ：弓で遠くから。斜め上に撃つ矢と、後ろへ跳びながら撃つ矢
+const yumiMoves = {
+  ...normals({ sp: 0, r: 0.95, d: 0.85 }),
+  spN: {
+    id: 'spN', name: '一の矢', rank: 4, total: 34, oneProj: true, boxes: [],
+    anim: [[0, 'castW'], [9, 'cast']],
+    spawn: [{ f: 10, x: 60, y: 120, vx: 20, w: 60, h: 14, life: 70, kind: 'arrow', dmg: 55, stun: 22, block: 12, kb: 5, lv: 'm', hs: 7, fx: 'm', chip: 4 }],
+  },
+  spD: {
+    id: 'spD', name: '天の矢', rank: 4, total: 32, oneProj: true, boxes: [],
+    anim: [[0, 'castW'], [7, 'upper']],
+    spawn: [{ f: 8, x: 40, y: 150, vx: 9, vy: 11, w: 40, h: 40, life: 45, kind: 'arrow', dmg: 60, stun: 30, block: 12, kb: 3, lv: 'm', launch: 14, hs: 8, fx: 'm', chip: 4 }],
+  },
+  spF: {
+    id: 'spF', name: '退き撃ち', rank: 4, total: 40, boxes: [],
+    motion: [{ from: 2, to: 10, vx: -12, vy: 6 }],
+    anim: [[0, 'dashB'], [10, 'castW'], [13, 'cast']],
+    spawn: [{ f: 14, x: 50, y: 110, vx: 20, w: 60, h: 14, life: 70, kind: 'arrow', dmg: 50, stun: 22, block: 12, kb: 5, lv: 'm', hs: 7, fx: 'm', chip: 4 }],
+  },
+  super: {
+    id: 'super', name: '破魔の大矢', rank: 5, super: true, total: 56, inv: [1, 14], boxes: [],
+    anim: [[0, 'castW'], [12, 'cast'], [44, 'idle']],
+    spawn: [14, 22, 30].map((f, i, all) => ({
+      f, x: 60, y: 100, vx: 26, w: 90, h: 30, life: 60, kind: 'arrow', noClash: true, lv: 'm', superFix: true, big: true, chip: 6,
+      ...(i === all.length - 1
+        ? { dmg: 130, stun: 50, block: 10, kb: 9, launch: 18, kd: true, hs: 16, fx: 's' }
+        : { dmg: 70, stun: 40, block: 10, kb: 1, hs: 8, fx: 'h' }),
+    })),
+  },
+};
+
+// ハミ：毒で体力をじわじわ削る（poison）。毒の相手には強い技もある（poisonBonus）
+const hamiMoves = {
+  ...normals({ sp: 0, r: 1, d: 0.9 }),
+  spN: {
+    id: 'spN', name: '毒霧', rank: 4, total: 40, oneProj: true, boxes: [],
+    anim: [[0, 'castW'], [11, 'cast']],
+    spawn: [{ f: 12, x: 70, y: 60, vx: 4.5, w: 90, h: 110, life: 55, kind: 'mist', dmg: 30, stun: 22, block: 10, kb: 2, lv: 'm', poison: 240, hs: 6, fx: 'l' }],
+  },
+  spD: {
+    id: 'spD', name: '這い牙', rank: 4, total: 38, crouch: true,
+    boxes: [hitbox(7, 8, [70, 4, 100, 40], { dmg: 50, stun: 30, block: 14, kb: 5, lv: 'l', poison: 180, poisonBonus: 1.4, hs: 9, fx: 'm', chip: 4 })],
+    motion: [{ from: 4, to: 14, vx: 11 }],
+    anim: [[0, 'crouch'], [5, 'slide'], [22, 'crouch']],
+  },
+  spF: {
+    id: 'spF', name: '噛みつき', rank: 4, total: 46,
+    boxes: [hitbox(6, 3, [56, 40, 84, 130], { throw: true, noTech: true, dmg: 90, poison: 300, poisonBonus: 1.6, launch: 10, kb: 6, kd: true, hs: 12, fx: 'h' })],
+    anim: [[0, 'grabW'], [6, 'grab']],
+    holdF: 20, holdT: 36,
+  },
+  super: {
+    id: 'super', name: '大蛇', rank: 5, super: true, total: 72, inv: [1, 16],
+    boxes: [14, 19, 24, 29, 34].map((f) => hitbox(f, 3, [70, 30, 130, 150], { dmg: 34, stun: 36, block: 8, kb: 0.8, lv: 'm', poisonBonus: 1.3, hs: 4, fx: 'm', superFix: true, chip: 3 }))
+      .concat([hitbox(42, 4, [80, 30, 140, 160], { dmg: 110, stun: 50, block: 10, kb: 9, lv: 'm', launch: 20, kd: true, poison: 300, poisonBonus: 1.3, hs: 16, fx: 's', superFix: true, chip: 10 })]),
+    motion: [{ from: 8, to: 20, vx: 16 }, { from: 21, to: 42, vx: 1.2 }],
+    anim: [[0, 'castW'], [9, 'slide'], [14, 'jab'], [19, 'kickM'], [24, 'jab'], [29, 'heavy'], [34, 'jab'], [41, 'upper'], [58, 'idle']],
+  },
+};
+
 export const CHARS = {
   kagari: {
     id: 'kagari', name: 'カガリ', kana: '火', title: '火の拳士', style: '飛び道具と昇炎で攻守が揃う基本形',
@@ -330,6 +477,61 @@ export const CHARS = {
       { gi: '#8a2f3a', dark: '#4a161e', trim: '#f2e6c8', skin: '#efc9aa', hair: '#3a2a22' },
     ],
     moves: kogarashiMoves,
+  },
+  tsuzumi: {
+    id: 'tsuzumi', name: 'ツヅミ', kana: '鼓', title: '鼓の打ち手', style: '必殺ボタン長押しで溜め、音の衝撃波を放つ',
+    hp: 980, w: 60, h: 184, walk: 5.6, back: 4.6, jump: 18.5, jumpVx: 6.2, dash: 15, dashF: 14,
+    build: 1, stats: { 攻撃: 3, 速度: 3, 体力: 3 }, stage: 'festival',
+    cpu: { antiAir: 'spD', zone: 'spN' },
+    palettes: [
+      { gi: '#e0457b', dark: '#8a2149', trim: '#ffe36b', skin: '#f0c49c', hair: '#2a1a30' },
+      { gi: '#2f9c6e', dark: '#175a3e', trim: '#ffd0e0', skin: '#f0c49c', hair: '#2a1a30' },
+    ],
+    moves: tsuzumiMoves,
+  },
+  oni: {
+    id: 'oni', name: 'オニ', kana: '鬼', title: '怒れる鬼', style: '遅いが重い。体力が減るほど攻撃が強くなる',
+    hp: 1200, w: 80, h: 200, walk: 4.2, back: 3.2, jump: 17, jumpVx: 5, dash: 12, dashF: 17,
+    build: 1.42, rage: true, stats: { 攻撃: 4, 速度: 1, 体力: 5 }, stage: 'onirock',
+    cpu: { antiAir: 'spD', poke: 'spF' },
+    palettes: [
+      { gi: '#3a3a3a', dark: '#1c1c1c', trim: '#e0b73a', skin: '#c9473a', hair: '#1a1214' },
+      { gi: '#2b3f73', dark: '#162344', trim: '#e0b73a', skin: '#3f7fc4', hair: '#1a1214' },
+    ],
+    moves: oniMoves,
+  },
+  kusari: {
+    id: 'kusari', name: 'クサリ', kana: '鎖', title: '鎖鎌の使い手', style: '鎖で遠くの相手を引き寄せてコンボ',
+    hp: 960, w: 58, h: 184, walk: 5.8, back: 4.8, jump: 18.8, jumpVx: 6.6, dash: 16, dashF: 14,
+    build: 0.95, stats: { 攻撃: 2, 速度: 4, 体力: 3 }, stage: 'harbor',
+    cpu: { antiAir: 'spD', poke: 'spN' },
+    palettes: [
+      { gi: '#7a5a3c', dark: '#43301e', trim: '#c9d2da', skin: '#e6b38c', hair: '#1e1a22' },
+      { gi: '#2e5a5a', dark: '#163232', trim: '#e8c070', skin: '#e6b38c', hair: '#5a2a1a' },
+    ],
+    moves: kusariMoves,
+  },
+  yumi: {
+    id: 'yumi', name: 'ユミ', kana: '弓', title: '弓の射手', style: '遠くから矢で攻める。近づかれると弱い',
+    hp: 900, w: 54, h: 180, walk: 5.6, back: 5, jump: 18.5, jumpVx: 6.4, dash: 16, dashF: 13,
+    build: 0.88, stats: { 攻撃: 3, 速度: 3, 体力: 2 }, stage: 'autumn',
+    cpu: { antiAir: 'spD', zone: 'spN' },
+    palettes: [
+      { gi: '#e8e0cc', dark: '#a39b86', trim: '#c23a2b', skin: '#f2cba6', hair: '#3a2416' },
+      { gi: '#3d4a8a', dark: '#1f2650', trim: '#f2d36b', skin: '#f2cba6', hair: '#121018' },
+    ],
+    moves: yumiMoves,
+  },
+  hami: {
+    id: 'hami', name: 'ハミ', kana: '蛇', title: '毒蛇の使い手', style: '毒で体力をじわじわ削る。毒の相手に強い',
+    hp: 940, w: 56, h: 182, walk: 6, back: 5, jump: 18, jumpVx: 6.4, dash: 16, dashF: 13,
+    build: 0.92, stats: { 攻撃: 2, 速度: 3, 体力: 3 }, stage: 'swamp',
+    cpu: { antiAir: 'spN', zone: 'spN', poke: 'spD' },
+    palettes: [
+      { gi: '#4f7a2e', dark: '#273f15', trim: '#c8e04a', skin: '#e2c09a', hair: '#1c2a12' },
+      { gi: '#5a2a6e', dark: '#2e1338', trim: '#7ee08a', skin: '#e2c09a', hair: '#1a1020' },
+    ],
+    moves: hamiMoves,
   },
 };
 

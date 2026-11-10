@@ -7,6 +7,7 @@ import {
 import { CHARS } from './characters.js';
 
 const HIST_LEN = 32;
+const POISON_TICK = 6; // 毒で1回に減る体力
 const DIR_MASK = BTN.U | BTN.D | BTN.L | BTN.R;
 const NEUTRAL = new Set(['idle', 'walk', 'crouch']);
 const NOT_THROWABLE = new Set(['hit', 'hitair', 'block', 'down', 'getup', 'thrown', 'throwing']);
@@ -19,7 +20,7 @@ function newFighter(idx, char, palette) {
     st: 'idle', f: 0, move: null, used: [], hit: false, blocked: false, chain: 0,
     stun: 0, hitstop: 0, inv: 0, throwInv: 0, landT: 0, jumps: 0, noAct: false,
     kd: false, bounce: false, wallB: false, crouching: false, jumpDir: 0, dashDir: 0,
-    armorUsed: false, thrownBy: -1, frozen: 0,
+    armorUsed: false, thrownBy: -1, frozen: 0, chargeF: 0, poison: 0,
     comboHits: 0, comboDmg: 0, idleF: 0,
     hist: new Array(HIST_LEN).fill(0), edge: 0, buf: null,
     lastTap: null, dashBit: 0, dashT: -99,
@@ -48,7 +49,7 @@ function placeForRound(s) {
       x: i === 0 ? -210 : 210, y: 0, vx: 0, vy: 0, facing: i === 0 ? 1 : -1,
       hp: CHARS[p.char].hp, st: 'idle', f: 0, move: null, used: [], hit: false, blocked: false, chain: 0,
       stun: 0, hitstop: 0, inv: 0, throwInv: 0, landT: 0, jumps: 0, noAct: false, kd: false, bounce: false,
-      wallB: false, crouching: false, armorUsed: false, thrownBy: -1, frozen: 0, comboHits: 0, comboDmg: 0, idleF: 0, buf: null,
+      wallB: false, crouching: false, armorUsed: false, thrownBy: -1, frozen: 0, chargeF: 0, poison: 0, comboHits: 0, comboDmg: 0, idleF: 0, buf: null,
     });
   });
   s.projs = [];
@@ -165,6 +166,7 @@ function startMove(s, p, id, cancelled = false) {
   p.blocked = false;
   p.buf = null;
   p.armorUsed = false;
+  p.chargeF = 0;
   p.crouching = !!m.crouch;
   if (!m.air) p.vx *= 0.3;
   if (m.super) {
@@ -275,6 +277,25 @@ function spawnProjectile(s, p, o, sp) {
     s.projs = s.projs.filter((q) => q.life > 0);
   }
   const x = sp.atOpp ? o.x : p.x + dir * sp.x;
+  // 溜めた分だけ大きく・速く・重くする（c は 0〜1）
+  const m = moveOf(p);
+  if (sp.charged && m && m.charge) {
+    const c = p.chargeF / m.charge.max;
+    sp = {
+      ...sp,
+      dmg: Math.round(sp.dmg * (1 + c * 1.6)),
+      stun: Math.round(sp.stun + c * 14),
+      chip: Math.round((sp.chip || 0) * (1 + c * 2)),
+      kb: sp.kb + c * 4,
+      w: Math.round(sp.w * (1 + c * 0.9)),
+      h: Math.round(sp.h * (1 + c * 0.6)),
+      vx: sp.vx * (1 + c * 0.7),
+      hs: sp.hs + Math.round(c * 6),
+      fx: c >= 0.99 ? 's' : c > 0.4 ? 'h' : sp.fx,
+      level: c,
+    };
+    if (c >= 0.99) { sp.launch = 14; sp.kd = true; }
+  }
   s.projs.push({
     owner: p.idx,
     x: Math.max(-STAGE_HALF, Math.min(STAGE_HALF, x)),
@@ -300,6 +321,13 @@ function updateAttack(s, p, o) {
     return;
   }
   if (m.warp && p.f === m.warp.f) warpBehind(s, p, o, m.warp.dist);
+  // 溜め：決まったコマで必殺ボタンを押し続けている間は、そのコマで止まって力を溜める
+  if (m.charge && p.f === m.charge.at && (current(p) & BTN.S) && p.chargeF < m.charge.max) {
+    p.chargeF++;
+    p.f--;
+    if (p.chargeF === m.charge.max) emit(s, { t: 'chargeMax', x: p.x, y: p.y + 110, by: p.idx });
+    return;
+  }
   if (m.motion) {
     for (const mo of m.motion) {
       if (mo.untilHit && (p.hit || p.blocked)) continue;
@@ -359,6 +387,14 @@ function completeThrow(s, a, d) {
 
 function updateFighter(s, p, o) {
   if (p.hitstop > 0) { p.hitstop--; return; }
+  // 毒：20コマごとに少しずつ減る。毒だけでは倒れない
+  if (p.poison > 0) {
+    p.poison--;
+    if (p.poison % 20 === 0 && p.hp > 1) {
+      p.hp = Math.max(1, p.hp - POISON_TICK);
+      emit(s, { t: 'poison', x: p.x, y: p.y + 150, by: p.idx });
+    }
+  }
   p.f++;
   if (p.inv > 0) p.inv--;
   if (p.throwInv > 0) p.throwInv--;
@@ -584,7 +620,11 @@ function dealDamage(s, a, d, hb, at, counter, isProj) {
   const scale = hb.superFix
     ? Math.max(0.5, 1 - 0.07 * Math.max(0, d.comboHits - 2))
     : Math.max(0.3, 1 - 0.09 * Math.max(0, d.comboHits - 2));
-  let dmg = Math.max(1, Math.round(hb.dmg * scale * (counter ? 1.15 : 1)));
+  // 怒り：体力が減るほど攻撃が重くなる（最大1.5倍）。毒の相手に強い技もある
+  const ach = CHARS[a.char];
+  const rage = ach.rage ? 1 + 0.5 * (1 - Math.max(0, a.hp) / ach.hp) : 1;
+  const venom = hb.poisonBonus && d.poison > 0 ? hb.poisonBonus : 1;
+  let dmg = Math.max(1, Math.round(hb.dmg * scale * (counter ? 1.15 : 1) * rage * venom));
   if (s.training) dmg = Math.min(dmg, Math.max(0, d.hp - 1));
   d.hp = Math.max(0, d.hp - dmg);
   d.comboDmg += dmg;
@@ -630,7 +670,14 @@ function dealDamage(s, a, d, hb, at, counter, isProj) {
       d.frozen = stun;
       d.vx = 0;
     }
+    // 引き寄せ：攻撃した側の目の前（約75）まで滑ってくる。
+    // のけぞり中は毎コマ 0.86倍→移動→0.92倍 と減速するので、進む距離は初速の約4.12倍。その分を見込む
+    if (hb.pull) {
+      const gap = Math.abs(d.x - a.x);
+      d.vx = -Math.sign(d.x - a.x || -a.facing) * Math.max(0, gap - 75) / 4.12;
+    }
   }
+  if (hb.poison) d.poison = Math.max(d.poison, hb.poison);
 
   const hs = hb.hs || 6;
   d.hitstop = hs;

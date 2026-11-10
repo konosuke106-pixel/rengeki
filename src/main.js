@@ -640,7 +640,7 @@ function fillMoveList() {
   const box = $('#movelist');
   box.textContent = '';
   const ch = CHARS[app.match.ps[myIdx()].char];
-  const rows = SPECIAL_COMMANDS.map(([id, simple, motion]) => [ch.moves[id].name, simple, motion]);
+  const rows = SPECIAL_COMMANDS.map(([id, simple, motion]) => [ch.moves[id].name, simple + (ch.moves[id].hint ? `（${ch.moves[id].hint}）` : ''), motion]);
   if (ch.moves.jS) rows.splice(3, 0, [ch.moves.jS.name, 'ジャンプ中に必殺', '']);
   rows.forEach(([name, simple, motion]) => {
     const tr = document.createElement('tr');
@@ -862,13 +862,20 @@ input.bindTouch($('#touch'));
 
 // [キャラ, 横の位置(0〜1), 奥行き(1=手前), ポーズ, 地面からの高さ(背の何倍)]
 const TITLE_CAST = [
-  ['goutetsu', 0.1, 0.8, 'idle', 0],
-  ['shizuku', 0.33, 0.78, 'cast', 0],
-  ['kage', 0.67, 0.8, 'parry', 0],
-  ['kogarashi', 0.9, 0.82, 'castW', 0],
-  ['rai', 0.22, 1, 'idle', 0],
-  ['kagari', 0.5, 1.12, 'heavy', 0],
-  ['hayate', 0.78, 1, 'jump', 0.18],
+  // 奥の列（小さく、少し上）
+  ['oni', 0.02, 0.74, 'idle', 0],
+  ['shizuku', 0.2, 0.7, 'cast', 0],
+  ['tsuzumi', 0.36, 0.7, 'castW', 0],
+  ['yumi', 0.64, 0.7, 'cast', 0],
+  ['kage', 0.8, 0.72, 'parry', 0],
+  ['goutetsu', 0.98, 0.74, 'idle', 0],
+  // 手前の列
+  ['kusari', 0.08, 0.92, 'jab', 0],
+  ['rai', 0.26, 0.95, 'idle', 0],
+  ['kagari', 0.5, 1.08, 'heavy', 0],
+  ['hayate', 0.7, 0.95, 'jump', 0.18],
+  ['hami', 0.84, 0.92, 'crouch', 0],
+  ['kogarashi', 0.97, 0.95, 'castW', 0],
 ];
 let titleClock = 0;
 
@@ -883,7 +890,7 @@ function drawTitleCast() {
   const ctx = cv.getContext('2d');
   ctx.clearRect(0, 0, w, h);
   // 背の高さを画面の高さに合わせる。横に詰まる時は少し小さく
-  const unit = Math.min(h * 0.0027, w * 0.00135);
+  const unit = Math.min(h * 0.0024, w * 0.00115);
   const ground = h * 0.93;
   for (const [id, fx, depth, poseName, lift] of TITLE_CAST) {
     const ch = CHARS[id];
@@ -892,7 +899,7 @@ function drawTitleCast() {
     const facing = fx <= 0.5 ? 1 : -1;
     const bob = Math.sin(titleClock * 0.05 + fx * 9) * 2;
     ctx.save();
-    ctx.translate(x, ground - lift * h - (depth < 1 ? h * 0.05 : 0) + bob);
+    ctx.translate(x, ground - lift * h - (depth < 0.8 ? h * 0.15 : 0) + bob);
     ctx.scale(k, k);
     paintFighter(ctx, ch, ch.palettes[0], POSES[poseName], 0, 0, facing, { clock: titleClock, vx: id === 'hayate' ? 6 * facing : 0 });
     ctx.restore();

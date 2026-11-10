@@ -132,6 +132,8 @@ export function createCpu(levelName = 'normal', seed = 12345) {
       return hold;
     }
     if (dist < 280) {
+      // 中間距離の得意技（クサリの鎖投げなど）
+      if (plan.poke && dist > 150 && r < 0.18 * lv.aggression + 0.04) return specialInput(plan.poke, fwd);
       if (r < 0.28 * lv.aggression) return BTN.C;
       if (r < 0.48 * lv.aggression) return BTN.B | BTN.D;
       if (r < 0.72) { hold = fwd; holdT = 16; return hold; }

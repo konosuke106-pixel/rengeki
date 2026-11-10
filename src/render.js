@@ -42,6 +42,26 @@ const STAGES = {
     sky: ['#c9d9e8', '#aac3da', '#8aa9c8', '#6c8db3'], sun: '#ffffff', sunXY: [380, 260], sunR: 90,
     far: '#7d9cc0', near: '#e8f1f8', floor: '#dfeaf3', floorLine: '#a9c2d8', name: '雪原', snow: true,
   },
+  festival: {
+    sky: ['#1a1235', '#2e1f52', '#4b2f6e', '#8a4a7a'], sun: '#ffe9b4', sunXY: [1000, 150], sunR: 80,
+    far: '#2a1c45', near: '#1a1030', floor: '#3a2418', floorLine: '#6a4428', name: '祭りの舞台', lanterns: true,
+  },
+  onirock: {
+    sky: ['#3a0f12', '#6b1a1a', '#a3341f', '#e0742e'], sun: '#ffcf6b', sunXY: [640, 400], sunR: 170,
+    far: '#4a1414', near: '#220808', floor: '#1c0a0a', floorLine: '#4a1c14', name: '鬼の岩山', spires: true,
+  },
+  harbor: {
+    sky: ['#cfe3ef', '#a9cde2', '#7fb2d3', '#5a93bd'], sun: '#fff6dc', sunXY: [260, 150], sunR: 70,
+    far: '#4f7a9a', near: '#3a3f48', floor: '#5a5048', floorLine: '#7a6a5a', name: '港の倉庫', harbor: true,
+  },
+  autumn: {
+    sky: ['#f6d8a0', '#f0b878', '#e08a58', '#c05a48'], sun: '#fff0c8', sunXY: [900, 220], sunR: 100,
+    far: '#a04a2a', near: '#6a2418', floor: '#4a2a1a', floorLine: '#7a4a2a', name: '紅葉の山道', leaves: true,
+  },
+  swamp: {
+    sky: ['#2a3a2a', '#3a5038', '#56704a', '#8a9a6a'], sun: '#e0e8c0', sunXY: [380, 200], sunR: 80,
+    far: '#2e4030', near: '#1a2a1a', floor: '#1e2a1a', floorLine: '#3a4a2a', name: '霧の沼地', fog: true, deadTrees: true,
+  },
 };
 
 function seeded(seed) {
@@ -133,6 +153,111 @@ function buildStage(id) {
         ctx.fillStyle = '#1d2f1b';
         for (let y = 40 + r() * 60; y < 560; y += 90 + r() * 40) ctx.fillRect(x - 2, y, w + 4, 5);
       }
+    }
+    if (st.lanterns) {
+      // 屋台の屋根と、張り渡した提灯の列
+      ctx.fillStyle = st.near;
+      for (let x = 60; x < 2700; x += 420) {
+        ctx.fillRect(x, 470, 260, 130);
+        ctx.beginPath();
+        ctx.moveTo(x - 30, 480);
+        ctx.lineTo(x + 130, 420);
+        ctx.lineTo(x + 290, 480);
+        ctx.fill();
+      }
+      ctx.strokeStyle = '#120a20';
+      ctx.lineWidth = 3;
+      for (let row = 0; row < 2; row++) {
+        const baseY = 300 + row * 70;
+        ctx.beginPath();
+        ctx.moveTo(0, baseY);
+        for (let x = 0; x <= 2700; x += 90) ctx.lineTo(x, baseY + Math.sin(x / 180) * 24);
+        ctx.stroke();
+        for (let x = 45 + row * 45; x < 2700; x += 90) {
+          const y = baseY + Math.sin(x / 180) * 24 + 22;
+          ctx.fillStyle = '#120a20';
+          ctx.beginPath();
+          ctx.ellipse(x, y, 16, 21, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = (x / 90) % 3 < 1 ? '#ffd36b' : '#ff7a4a';
+          ctx.beginPath();
+          ctx.ellipse(x, y, 12, 17, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+    if (st.spires) {
+      // とがった岩の柱
+      const r = seeded(23);
+      ctx.fillStyle = st.near;
+      for (let i = 0; i < 16; i++) {
+        const x = r() * 2700;
+        const h = 160 + r() * 260;
+        const w = 50 + r() * 70;
+        ctx.beginPath();
+        ctx.moveTo(x - w, 600);
+        ctx.lineTo(x - w * 0.2, 560 - h);
+        ctx.lineTo(x + w * 0.1, 560 - h + 30);
+        ctx.lineTo(x + w, 600);
+        ctx.fill();
+      }
+    }
+    if (st.harbor) {
+      // 倉庫・積み荷・クレーン
+      ctx.fillStyle = st.near;
+      [[100, 220], [700, 260], [1400, 230], [2100, 250]].forEach(([x, w]) => {
+        ctx.fillRect(x, 400, w * 1.6, 200);
+        ctx.beginPath();
+        ctx.moveTo(x - 10, 400);
+        ctx.lineTo(x + w * 0.8, 350);
+        ctx.lineTo(x + w * 1.6 + 10, 400);
+        ctx.fill();
+      });
+      const crates = ['#a8563a', '#3a6a8a', '#c9a23a', '#4a7a4a'];
+      for (let i = 0; i < 14; i++) {
+        const x = 40 + i * 190 + (i % 3) * 20;
+        ctx.fillStyle = crates[i % 4];
+        ctx.fillRect(x, 520, 90, 80);
+        if (i % 2) ctx.fillRect(x + 20, 460, 70, 60);
+        ctx.strokeStyle = 'rgba(0,0,0,.35)';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x, 520, 90, 80);
+      }
+      ctx.strokeStyle = st.near;
+      ctx.lineWidth = 12;
+      ctx.beginPath();
+      ctx.moveTo(1240, 600);
+      ctx.lineTo(1240, 180);
+      ctx.lineTo(1520, 180);
+      ctx.moveTo(1240, 260);
+      ctx.lineTo(1340, 180);
+      ctx.stroke();
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(1500, 180);
+      ctx.lineTo(1500, 330);
+      ctx.stroke();
+    }
+    if (st.deadTrees) {
+      // 枯れ木
+      ctx.strokeStyle = st.near;
+      ctx.lineCap = 'round';
+      [[200, 1], [900, 0.8], [1700, 1.1], [2400, 0.9]].forEach(([x, s]) => {
+        ctx.lineWidth = 22 * s;
+        ctx.beginPath();
+        ctx.moveTo(x, 600);
+        ctx.lineTo(x + 10 * s, 320);
+        ctx.stroke();
+        ctx.lineWidth = 9 * s;
+        ctx.beginPath();
+        ctx.moveTo(x + 6 * s, 420);
+        ctx.lineTo(x - 80 * s, 340);
+        ctx.moveTo(x + 10 * s, 360);
+        ctx.lineTo(x + 100 * s, 290);
+        ctx.moveTo(x + 10 * s, 330);
+        ctx.lineTo(x - 30 * s, 260);
+        ctx.stroke();
+      });
     }
     if (st.roofs) {
       // 瓦屋根の並びと五重塔
@@ -238,6 +363,7 @@ export class Renderer {
     this.clock = 0;
     this.rainDrops = null;
     this.snowFlakes = null;
+    this.leafList = null;
   }
 
   setStage(id) {
@@ -296,6 +422,14 @@ export class Renderer {
           playSound('armor');
           this.spark(e.x, sy, 14, '#ffd983', 10);
           this.pushText('耐えた', e.x, sy - 40, '#ffd983', 34, -0.05);
+          break;
+        case 'chargeMax':
+          playSound('armor');
+          this.spark(e.x, sy, 12, '#ffffff', 8);
+          this.pushText('最大', e.x, sy - 70, '#ffe36b', 34, 0);
+          break;
+        case 'poison':
+          this.pushText('毒', e.x + (Math.random() - 0.5) * 30, sy - 20, '#8fdc3c', 20, 0);
           break;
         case 'parry':
           playSound('armor');
@@ -519,6 +653,40 @@ export class Renderer {
         ctx.fillRect(f.x, f.y, f.s, f.s);
       }
     }
+    if (st.def.leaves) {
+      // 舞い落ちる紅葉
+      if (!this.leafList) {
+        const r = seeded(55);
+        this.leafList = Array.from({ length: 46 }, () => ({ x: r() * MAX_VIEW_W - SKY_PAD, y: r() * VIEW_H, v: 1.2 + r() * 1.6, a: r() * 6, c: r() < 0.5 ? '#e0452b' : r() < 0.5 ? '#f08a2a' : '#c9302a' }));
+      }
+      for (const f of this.leafList) {
+        f.y += f.v;
+        f.a += 0.05;
+        f.x += Math.sin(this.clock * 0.02 + f.a) * 1.2 - 0.5;
+        if (f.y > VIEW_H) { f.y = -10; f.x = Math.random() * MAX_VIEW_W - SKY_PAD; }
+        if (f.x < -SKY_PAD) f.x += MAX_VIEW_W;
+        ctx.save();
+        ctx.translate(f.x, f.y);
+        ctx.rotate(f.a);
+        ctx.fillStyle = f.c;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 8, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+    if (st.def.fog) {
+      // ゆっくり流れる霧の帯
+      ctx.fillStyle = 'rgba(200,220,190,.16)';
+      for (let i = 0; i < 4; i++) {
+        const y = 380 + i * 70;
+        const x = ((this.clock * (0.3 + i * 0.15) + i * 400) % (MAX_VIEW_W + 800)) - SKY_PAD - 400;
+        ctx.beginPath();
+        ctx.ellipse(x, y, 520, 34, 0, 0, Math.PI * 2);
+        ctx.ellipse(x - MAX_VIEW_W * 0.6, y + 20, 420, 28, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     if (s.freeze > 0) {
       ctx.fillStyle = 'rgba(21,16,28,.62)';
       this.fillView();
@@ -549,9 +717,33 @@ export class Renderer {
       vx: p.vx,
       clock: this.clock,
       aura: s.freeze > 0 && s.freezeBy === i,
+      rage: ch.rage && p.hp > 0 && p.hp < ch.hp * 0.5,
     });
     this.ctx.restore();
     if (p.frozen > 0 && p.st === 'hit') this.drawIceBlock(p, ch);
+    // 毒：頭の上に緑の泡が立つ
+    if (p.poison > 0 && this.clock % 5 === 0) {
+      this.parts.push({ x: p.x + (Math.random() - 0.5) * 50, y: GROUND_Y - p.y - ch.h * 0.9, vx: (Math.random() - 0.5) * 0.6, vy: -1.6, g: 0, r: 4 + Math.random() * 5, life: 26, max: 26, color: '#8fdc3c', kind: 'bubble' });
+    }
+    // 溜め：手元に光の輪が広がる
+    const m = moveOf(p);
+    // 溜めている間、技のコマは charge.at の1つ手前で止まっている
+    if (p.st === 'attack' && m && m.charge && p.f < m.charge.at && p.chargeF > 0) {
+      const c = p.chargeF / m.charge.max;
+      const ctx = this.ctx;
+      const cx = p.x + p.facing * 50;
+      const cy = GROUND_Y - p.y - 120;
+      ctx.save();
+      ctx.strokeStyle = c >= 1 ? '#ffffff' : pal.trim;
+      for (let r = 0; r < 3; r++) {
+        ctx.globalAlpha = 0.8 - r * 0.22;
+        ctx.lineWidth = 4 + c * 4;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 16 + c * 46 + r * 12 + (this.clock % 6) * 2, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 
   // 凍った相手を包む氷
@@ -589,8 +781,50 @@ export class Renderer {
 
   drawSwoosh(p) {
     const ctx = this.ctx;
-    for (const { b, rect } of activeBoxes(p)) {
+    const mv = moveOf(p);
+    // 鎖の技は当たった後も、判定が出ている間は鎖を描く（当たった判定は activeBoxes から外れるため別に集める）
+    const list = mv && mv.chain && p.st === 'attack'
+      ? mv.boxes.filter((b) => p.f >= b.from && p.f <= b.to + 2).map((b) => {
+        const cx = p.x + p.facing * b.box[0];
+        return { b, rect: { x0: cx - b.box[2] / 2, x1: cx + b.box[2] / 2, y0: p.y + b.box[1], y1: p.y + b.box[1] + b.box[3] } };
+      })
+      : activeBoxes(p);
+    for (const { b, rect } of list) {
       if (b.throw) continue;
+      // 鎖の技：手元から判定の先まで鎖を伸ばし、先に鎌を描く
+      if (mv && mv.chain) {
+        const pal = CHARS[p.char].palettes[p.palette];
+        const sx = p.x + p.facing * 40;
+        const sy = GROUND_Y - p.y - 120;
+        const ex = p.facing > 0 ? rect.x1 : rect.x0;
+        const ey = GROUND_Y - (rect.y0 + rect.y1) / 2;
+        ctx.save();
+        ctx.lineCap = 'round';
+        for (const [w, c] of [[8, INK], [4, pal.trim]]) {
+          ctx.strokeStyle = c;
+          ctx.lineWidth = w;
+          ctx.setLineDash([9, 5]);
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        ctx.translate(ex, ey);
+        ctx.scale(p.facing, 1);
+        ctx.fillStyle = '#d8dde3';
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(26, -30, 6, -46);
+        ctx.quadraticCurveTo(14, -24, -6, -4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
       const cx = (rect.x0 + rect.x1) / 2;
       const cy = GROUND_Y - (rect.y0 + rect.y1) / 2;
       const w = (rect.x1 - rect.x0) / 2;
@@ -760,6 +994,67 @@ export class Renderer {
         ctx.lineWidth = 3;
         ctx.stroke();
       }
+    } else if (q.kind === 'sound') {
+      // 音の衝撃波：進む向きにふくらむ弧を重ねる。溜めるほど太く白くなる
+      const lv = q.data.level || 0;
+      ctx.scale(dir, 1);
+      for (let i = 0; i < 3; i++) {
+        const off = -i * 18 + (q.age % 6) * 2;
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 9 + lv * 8;
+        ctx.beginPath();
+        ctx.ellipse(off, 0, q.w * 0.35, q.h * 0.5, 0, -1.2, 1.2);
+        ctx.stroke();
+        ctx.strokeStyle = lv >= 1 ? '#ffffff' : i === 0 ? pal.trim : pal.gi;
+        ctx.lineWidth = 4 + lv * 6;
+        ctx.stroke();
+      }
+    } else if (q.kind === 'arrow') {
+      // 矢：飛ぶ向きに回す
+      ctx.rotate(Math.atan2(-q.vy, q.vx));
+      const len = q.data.big ? 120 : 64;
+      const w = q.data.big ? 8 : 4;
+      ctx.lineCap = 'round';
+      for (const [lw, c] of [[w + 5, INK], [w, '#c9a46a']]) {
+        ctx.strokeStyle = c;
+        ctx.lineWidth = lw;
+        ctx.beginPath();
+        ctx.moveTo(-len / 2, 0);
+        ctx.lineTo(len / 2, 0);
+        ctx.stroke();
+      }
+      ctx.fillStyle = q.data.big ? '#ffffff' : '#d8dde3';
+      ctx.beginPath();
+      ctx.moveTo(len / 2 + 16, 0);
+      ctx.lineTo(len / 2 - 4, -9);
+      ctx.lineTo(len / 2 - 4, 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+      ctx.fillStyle = pal.trim;
+      ctx.fillRect(-len / 2 - 2, -8, 14, 16);
+      if (q.data.big) {
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = '#fff4c9';
+        ctx.fillRect(-len * 1.4, -3, len, 6);
+      }
+    } else if (q.kind === 'mist') {
+      // 毒霧：ゆらめく緑の雲
+      const fade = Math.min(1, q.life / 12);
+      ctx.globalAlpha = 0.75 * fade;
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * Math.PI * 2 + q.age * 0.08;
+        ctx.fillStyle = i % 2 ? '#6fae2e' : '#a6e04a';
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * q.w * 0.25, Math.sin(a) * q.h * 0.25, q.w * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = INK;
+      ctx.fillRect(-12, -6, 6, 6);
+      ctx.fillRect(6, -6, 6, 6);
     } else if (q.kind === 'prison') {
       // 地面から突き出す大きな氷
       const grow = Math.min(1, (q.age + 1) / 5);
@@ -1087,6 +1382,8 @@ const CLOTH = {
   kagari: { at: 'top', len: 18, n: 6, w: 11, droop: 1.2, color: 'trim' },
   shizuku: { at: 'head', len: 15, n: 6, w: 15, droop: 3.4, color: 'hair' },
   hayate: { at: 'neck', len: 21, n: 8, w: 12, droop: 0.5, color: 'trim' },
+  yumi: { at: 'head', len: 14, n: 6, w: 13, droop: 2.6, color: 'hair' },
+  tsuzumi: { at: 'top', len: 13, n: 5, w: 9, droop: 1.6, color: 'trim' },
 };
 
 // キャラ1体を描く。キャラ選択画面の肖像でも使う
@@ -1130,6 +1427,38 @@ export function paintFighter(ctx, ch, pal, pose, x, groundScreenY, facing, o = {
     ctx.arc(c[0], c[1], 118 + Math.sin((o.clock || 0) * 0.8) * 10, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
+  }
+
+  // オニの怒り：体力が半分を切ると赤い気がゆらめく
+  if (o.rage && !flash) {
+    ctx.fillStyle = '#ff3b2f';
+    ctx.globalAlpha = 0.22 + 0.1 * Math.sin((o.clock || 0) * 0.3);
+    ctx.beginPath();
+    const c = P({ x: sk.top.x * 0.5, y: sk.top.y * 0.6 });
+    ctx.ellipse(c[0], c[1], 90 * k, 130 * k, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // ツヅミの背中の太鼓
+  if (ch.id === 'tsuzumi') {
+    const d = P({ x: sk.hip.x - 26, y: sk.hip.y + 30 });
+    ctx.fillStyle = INK;
+    ctx.beginPath();
+    ctx.ellipse(d[0], d[1], 25 * k, 30 * k, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = flash || '#b5652d';
+    ctx.beginPath();
+    ctx.ellipse(d[0], d[1], 21 * k, 26 * k, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = flash || pal.trim;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(d[0] - 18 * k, d[1] - 14 * k);
+    ctx.lineTo(d[0] + 18 * k, d[1] + 14 * k);
+    ctx.moveTo(d[0] + 18 * k, d[1] - 14 * k);
+    ctx.lineTo(d[0] - 18 * k, d[1] + 14 * k);
+    ctx.stroke();
   }
 
   // 奥の手足
@@ -1233,11 +1562,29 @@ export function paintFighter(ctx, ch, pal, pose, x, groundScreenY, facing, o = {
     ctx.fillStyle = pal.trim;
     ctx.fillRect(hp[0] + facing * 5 - 4, hp[1] - 1, 8, 3.5);
     ctx.fillRect(hp[0] + facing * 13 - 3, hp[1] - 1, 6, 3.5);
+  } else if (!flash && ch.id === 'hami') {
+    // 蛇の頭巾：頭の後ろと上を覆い、頭のてっぺんに蛇の目
+    ctx.fillStyle = pal.dark;
+    ctx.beginPath();
+    ctx.arc(hp[0], hp[1], headR + 4, Math.PI * 1.0, Math.PI * 2.0);
+    ctx.lineTo(hp[0] - facing * (headR + 6), hp[1] + headR + 8);
+    ctx.lineTo(hp[0] - facing * (headR - 6), hp[1] + 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = pal.gi;
+    ctx.beginPath();
+    ctx.ellipse(hp[0] + facing * 6, hp[1] - headR - 2, 12, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = pal.trim;
+    ctx.fillRect(hp[0] + facing * 4 - 2, hp[1] - headR - 5, 4, 4);
+    ctx.fillRect(hp[0] + facing * 12 - 2, hp[1] - headR - 5, 4, 4);
+    ctx.fillStyle = INK;
+    ctx.fillRect(hp[0] + facing * 7 - 3, hp[1] + 1, 7, 3.5);
   } else if (!flash) {
     // 髪・装飾
     ctx.fillStyle = pal.hair;
     ctx.beginPath();
-    if (ch.id === 'goutetsu') {
+    if (ch.id === 'goutetsu' || ch.id === 'oni') {
       // 顎ひげ
       ctx.arc(hp[0] + facing * 4, hp[1] + 7, headR * 0.82, 0.15 * Math.PI, 0.85 * Math.PI);
       ctx.fill();
@@ -1267,6 +1614,27 @@ export function paintFighter(ctx, ch, pal, pose, x, groundScreenY, facing, o = {
       ctx.arc(hp[0], hp[1], headR, 0.05 * Math.PI, 0.95 * Math.PI);
       ctx.lineTo(hp[0] - headR, hp[1] + 6);
       ctx.lineTo(hp[0] + headR, hp[1] + 6);
+      ctx.fill();
+    }
+  }
+  // オニの角
+  if (ch.id === 'oni' && !flash) {
+    for (const side of [-0.55, 0.45]) {
+      const bx = hp[0] + side * headR * facing;
+      const by = hp[1] - headR * 0.7;
+      ctx.fillStyle = INK;
+      ctx.beginPath();
+      ctx.moveTo(bx - 9, by + 4);
+      ctx.lineTo(bx + side * 8 * facing, by - 26);
+      ctx.lineTo(bx + 9, by + 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = pal.trim;
+      ctx.beginPath();
+      ctx.moveTo(bx - 5, by + 1);
+      ctx.lineTo(bx + side * 7 * facing, by - 20);
+      ctx.lineTo(bx + 5, by + 1);
+      ctx.closePath();
       ctx.fill();
     }
   }
@@ -1301,6 +1669,68 @@ export function paintFighter(ctx, ch, pal, pose, x, groundScreenY, facing, o = {
 
   // 手前の腕
   limb(sk.armF, 16, 14, pal.gi, pal.trim, 10);
+
+  // 手に持つ物（前腕の向き u に沿って描く）
+  const hand = sk.armF.c;
+  const fl = Math.hypot(hand.x - sk.armF.b.x, hand.y - sk.armF.b.y) || 1;
+  const ux = (hand.x - sk.armF.b.x) / fl;
+  const uy = (hand.y - sk.armF.b.y) / fl;
+  if (ch.id === 'oni') {
+    // 金棒：太く短く、とげ付き
+    const tip = { x: hand.x + ux * 78, y: hand.y + uy * 78 };
+    const butt = { x: hand.x - ux * 14, y: hand.y - uy * 14 };
+    stroke(butt, tip, 26, INK);
+    stroke(butt, tip, 18, flash || '#5a5560');
+    ctx.fillStyle = flash || pal.trim;
+    for (let i = 1; i <= 4; i++) {
+      const sp = P({ x: hand.x + ux * (18 + i * 14), y: hand.y + uy * (18 + i * 14) });
+      ctx.beginPath();
+      ctx.arc(sp[0], sp[1], 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (ch.id === 'kusari') {
+    // 鎌と、手から垂れる鎖
+    const tip = { x: hand.x + ux * 34, y: hand.y + uy * 34 };
+    stroke(hand, tip, 9, INK);
+    stroke(hand, tip, 5, flash || '#8a5a2e');
+    const tp = P(tip);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 9;
+    ctx.beginPath();
+    ctx.arc(tp[0] - facing * 10, tp[1], 18, facing > 0 ? -1.6 : -1.54 + Math.PI * 0.0, facing > 0 ? 0.1 : 3.1, false);
+    ctx.stroke();
+    ctx.strokeStyle = flash || pal.trim;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    const hp2 = P(hand);
+    ctx.strokeStyle = flash || pal.trim;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(hp2[0], hp2[1]);
+    ctx.quadraticCurveTo(hp2[0] - facing * 20, hp2[1] + 40, hp2[0] - facing * 34, hp2[1] + 18);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  } else if (ch.id === 'yumi') {
+    // 弓：手を中心に、前へふくらむ弧と弦
+    const hp2 = P(hand);
+    const r = 56 * k;
+    ctx.lineCap = 'round';
+    for (const [w, c] of [[11, INK], [6, flash || '#7a3b1e']]) {
+      ctx.strokeStyle = c;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.arc(hp2[0] - facing * r * 0.55, hp2[1], r, facing > 0 ? -0.95 : Math.PI - 0.95 + 0.0, facing > 0 ? 0.95 : Math.PI + 0.95);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = PAPER;
+    ctx.lineWidth = 1.5;
+    const sx = hp2[0] - facing * r * 0.55 + facing * Math.cos(0.95) * r;
+    ctx.beginPath();
+    ctx.moveTo(sx, hp2[1] - Math.sin(0.95) * r);
+    ctx.lineTo(sx, hp2[1] + Math.sin(0.95) * r);
+    ctx.stroke();
+  }
 
   // ライの棒：前腕の向きに沿って、手から前後に伸ばす
   if (ch.id === 'rai') {
