@@ -29,7 +29,7 @@
 - コンボ：弱→中→強→必殺→超必殺、打ち上げ→空中コンボ、叩きつけバウンド
 - ガード、投げと投げ抜け、ダッシュ、飛び道具、カウンター、アーマー
 - 長いコンボほどダメージとのけぞりが減る
-- テスト128件が通過。キーボード、画面ボタンの押下、結果画面まではブラウザで確認済み
+- テスト131件が通過。キーボード、画面ボタンの押下、結果画面まではブラウザで確認済み
 - オンライン対戦を公開済み（部屋コード、巻き戻し同期、再戦、切断の処理）。`src/rollback.js` と `src/net.js`
   - 通信は、部屋での出会いに Supabase Realtime、対戦中は可能なら WebRTC 直結、だめなら Supabase 中継。DB は使わない
   - 確認は同じPC内の2画面のみ。公開ページで直結、本物のサーバーで中継を試し、食い違いなし（`tools/duo.html` で再現できる）
@@ -55,6 +55,7 @@
 - キャラ選択の強さ表示：スマホ横向きでも攻撃・速度・体力を出す（4列、縦にスクロール）
 - タイトル画面：山の上に16人が2列で並ぶ（`main.js` の `TITLE_CAST` で並びとポーズ、`drawTitleCast` が描く。布がなびくよう常に再描画）
 - ホーム画面アイコン：夕日を背にカガリが拳を突き出す絵。`tools/icon.html` が元絵で、ゲームの `paintFighter` をそのまま使う（`?char=&pose=&scale=&x=` で変えられる）。`tools/make-icons.ps1` が一時サーバーを立てて Edge で撮り、`icon-180/192/512.png` を作る（`-Preview` で確認用だけ）
+- 安全用のヘッダー（2026-11-11）：本番の全ページに CSP（読み込み元を自分のサイト・Google Fonts・jsDelivr の supabase-js・Supabase の部屋だけに制限、他サイトへの埋め込み禁止）、HSTS、X-Frame-Options などを付けた。中身は `_headers`（ビルドで `dist` にコピー）。CSP がページ内に直接書いたスクリプトを禁止するので、`dist/index.html` はゲームを `game.js`・`styles.css` に分けて読み込む（Artifact 用の `rengeki.html` は1ファイルのまま）。読み込み元を増やすときは `_headers` も直す。食い違いは `tests/headers.test.mjs` が見張る。本番と同じヘッダーで手元確認するには `npm run build` のあと `node tools/serve.mjs dist`（http://localhost:5181）
 
 ## 公開先
 - 本番：https://rengeki.pages.dev/（Cloudflare Pages、プロジェクト名 `rengeki`、2026-11-10 に移転）

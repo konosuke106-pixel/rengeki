@@ -4,8 +4,19 @@
     {
       "name": "rengeki",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["tools/serve.mjs"],
+      "runtimeArgs": [
+        "tools/serve.mjs"
+      ],
       "port": 5180
+    },
+    {
+      "name": "rengeki-dist",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/serve.mjs",
+        "dist"
+      ],
+      "port": 5181
     }
   ]
 }
