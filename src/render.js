@@ -408,6 +408,21 @@ function buildStage(id) {
   return { sky, far, near, floor, def: st };
 }
 
+// ステージ選択用の見本の絵。試合中と同じ重ね方で、カメラが真ん中にある時の景色を縮小して描く
+export function paintStagePreview(canvas, id) {
+  const st = buildStage(id);
+  const ctx = canvas.getContext('2d');
+  const k = canvas.height / VIEW_H;
+  ctx.save();
+  ctx.scale(k, k);
+  ctx.translate((canvas.width / k - VIEW_W) / 2, 0);
+  ctx.drawImage(st.sky, -SKY_PAD, 0);
+  ctx.drawImage(st.far, -515, 0);
+  ctx.drawImage(st.near, -710, 0);
+  ctx.drawImage(st.floor, -660, GROUND_Y);
+  ctx.restore();
+}
+
 // 骨格を計算する。座標は腰が原点、上が +y
 function solve(pose, ch) {
   const k = ch.build;

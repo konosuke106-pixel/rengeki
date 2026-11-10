@@ -3,7 +3,8 @@ import { CHARS, CHAR_IDS, SPECIAL_COMMANDS } from './characters.js';
 import { createMatch, step, moveOf } from './sim.js';
 import { createCpu, dummyInput } from './ai.js';
 import { InputManager } from './input.js';
-import { Renderer, paintFighter } from './render.js';
+import { Renderer, paintFighter, paintStagePreview } from './render.js';
+import { STAGE_IDS, STAGE_INFO } from './stages.js';
 import { POSES } from './poses.js';
 import { GROUND_Y, VIEW_W, VIEW_H, MAX_VIEW_W, BTN } from './config.js';
 import { unlockAudio, playSound, isMuted, setMuted } from './audio.js';
@@ -11,7 +12,7 @@ import { RollbackSession } from './rollback.js';
 import { OnlineLink, makeRoomCode, normalizeRoomCode, onlineAvailable } from './net.js';
 
 const $ = (sel) => document.querySelector(sel);
-const screens = ['#screen-title', '#screen-select', '#screen-battle'];
+const screens = ['#screen-title', '#screen-select', '#screen-stage', '#screen-battle'];
 
 const input = new InputManager();
 const renderer = new Renderer($('#game'));
@@ -21,6 +22,7 @@ const app = {
   level: 'normal',
   picks: [null, null],
   picking: 0,
+  stage: null,     // 選んだステージ。null なら2人目のキャラのステージ
   match: null,
   controllers: [null, null],
   paused: false,
@@ -119,6 +121,7 @@ function updateSelectHeading() {
 
 function openSelect(mode) {
   app.mode = mode;
+  app.stage = null;
   app.picks = [null, null];
   app.picking = 0;
   updateSelectHeading();
@@ -137,7 +140,59 @@ function pickChar(id) {
     updateSelectHeading();
     return;
   }
-  startMatch();
+  openStageSelect();
+}
+
+/* ---------- ステージ選択 ---------- */
+
+let stageCardsBuilt = false;
+
+function stageCard(id, name, note, home) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'stage-card' + (home ? ' home' : '');
+  btn.dataset.stage = id;
+  const cv = document.createElement('canvas');
+  cv.width = 320;
+  cv.height = 180;
+  const nm = document.createElement('div');
+  nm.className = 'stage-name';
+  nm.textContent = name;
+  const nt = document.createElement('div');
+  nt.className = 'stage-note';
+  nt.textContent = note;
+  btn.append(cv, nm, nt);
+  btn.addEventListener('click', () => {
+    playSound('ui');
+    app.stage = home ? null : id;
+    startMatch();
+  });
+  return btn;
+}
+
+function openStageSelect() {
+  const wrap = $('#stage-list');
+  const homeId = CHARS[app.picks[1]].stage;
+  if (!stageCardsBuilt) {
+    stageCardsBuilt = true;
+    wrap.append(stageCard('', 'おまかせ', '', true));
+    for (const id of STAGE_IDS) wrap.append(stageCard(id, STAGE_INFO[id].name, STAGE_INFO[id].note || '', false));
+    // 見本の絵は重いので、1枚ずつ少しずつ描く
+    const ids = STAGE_IDS.slice();
+    const next = () => {
+      const id = ids.shift();
+      if (!id) return;
+      paintStagePreview(wrap.querySelector(`.stage-card[data-stage="${id}"] canvas`), id);
+      requestAnimationFrame(next);
+    };
+    requestAnimationFrame(next);
+  }
+  // 「おまかせ」は相手（2人目）のキャラのステージ
+  const home = wrap.querySelector('.stage-card.home');
+  home.querySelector('.stage-note').textContent = `${CHARS[app.picks[1]].name}のステージ（${STAGE_INFO[homeId].name}）`;
+  paintStagePreview(home.querySelector('canvas'), homeId);
+  show('#screen-stage');
+  home.focus();
 }
 
 /* ---------- 試合 ---------- */
@@ -156,10 +211,11 @@ function buildControllers() {
 
 function startMatch() {
   const [p1, p2] = app.picks;
-  app.match = createMatch({ p1, p2, training: app.mode === 'training' });
+  const stage = app.stage || CHARS[p2].stage;
+  app.match = createMatch({ p1, p2, training: app.mode === 'training', stage });
   app.controllers = buildControllers();
   renderer.reset();
-  renderer.setStage(CHARS[p2].stage);
+  renderer.setStage(stage);
   app.paused = false;
   app.resultShown = false;
   app.acc = 0;
@@ -753,6 +809,10 @@ bind('#btn-back', () => {
   } else {
     show('#screen-title');
   }
+});
+bind('#btn-stage-back', () => {
+  show('#screen-select');
+  updateSelectHeading();
 });
 bind('#btn-pause', () => togglePause());
 bind('#btn-resume', () => togglePause(false));

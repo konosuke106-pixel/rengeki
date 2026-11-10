@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = (p) => readFileSync(root + p, 'utf8');
-const ORDER = ['config', 'characters', 'sim', 'rollback', 'online-config', 'net', 'ai', 'input', 'poses', 'audio', 'render', 'main'];
+const ORDER = ['config', 'characters', 'stages', 'sim', 'rollback', 'online-config', 'net', 'ai', 'input', 'poses', 'audio', 'render', 'main'];
 
 const js = ORDER.map((name) => read(`src/${name}.js`)
   .replace(/^import[\s\S]*?from\s+['"][^'"]+['"];?[ \t]*$/gm, '')

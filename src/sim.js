@@ -32,9 +32,10 @@ function newFighter(idx, char, palette) {
   };
 }
 
-export function createMatch({ p1 = 'kagari', p2 = 'goutetsu', training = false } = {}) {
+export function createMatch({ p1 = 'kagari', p2 = 'goutetsu', training = false, stage = null } = {}) {
   const s = {
     t: 0, phase: 'intro', phaseF: 0, round: 1, time: ROUND_FRAMES, training,
+    stage: stage || CHARS[p2].stage,
     freeze: 0, freezeBy: -1, winner: -1, matchWinner: -1, timeUp: false,
     ps: [newFighter(0, p1, 0), newFighter(1, p2, p1 === p2 ? 1 : 0)],
     projs: [], events: [],
