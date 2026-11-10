@@ -3,7 +3,7 @@ import { VIEW_W, VIEW_H, MAX_VIEW_W, GROUND_Y, STAGE_HALF, METER_MAX, SUPER_COST
 import { CHARS } from './characters.js';
 import { STAGE_INFO } from './stages.js';
 import { moveOf, activeBoxes, hurtboxOf, moveInvincible } from './sim.js';
-import { POSES, clonePose, blendPose, targetPose } from './poses.js';
+import { POSES, clonePose, blendPose, targetPose, EVADE_SPIN } from './poses.js';
 import { playSound } from './audio.js';
 
 const INK = '#15101c';
@@ -1111,9 +1111,9 @@ export class Renderer {
     // 試合が進んだコマでだけ記録する（一時停止中やヒットストップ中に同じ位置へ重ならないように）
     const advanced = this.trailF[i] !== p.f;
     this.trailF[i] = p.f;
-    if (evading && p.f < 18) {
+    if (evading && p.f < EVADE_SPIN) {
       if (advanced && p.f % 2 === 0) {
-        trail.push({ x: p.x, y: p.y, facing: p.facing, pose: clonePose(this.poses[i]) });
+        trail.push({ x: p.x, y: p.y, facing: p.facing, f: p.f, dir: p.dashDir, pose: clonePose(this.poses[i]) });
         if (trail.length > 4) trail.shift();
       }
       // 体の後ろに流れる速さの筋
@@ -1131,7 +1131,7 @@ export class Renderer {
     trail.forEach((t, k) => {
       ctx.save();
       ctx.globalAlpha = 0.12 + 0.26 * (k + 1) / trail.length;
-      paintFighter(ctx, ch, pal, t.pose, t.x, GROUND_Y - t.y, t.facing, { flash: pal.trim, clock: this.clock });
+      paintFighter(ctx, ch, pal, t.pose, t.x, GROUND_Y - t.y, t.facing, { flash: pal.trim, clock: this.clock, ...evadeSpin(t.f, t.dir, t.facing, GROUND_Y - t.y, ch.build) });
       ctx.restore();
     });
   }
@@ -1151,6 +1151,7 @@ export class Renderer {
     if (evading && p.inv > 0) this.ctx.globalAlpha = 0.88;
     const shakeX = p.hitstop > 0 && (p.st === 'hit' || p.st === 'hitair') ? (this.clock % 2 ? 4 : -4) : 0;
     paintFighter(this.ctx, ch, pal, pose, p.x + shakeX, GROUND_Y - p.y, p.facing, {
+      ...(evading ? evadeSpin(p.f, p.dashDir, p.facing, GROUND_Y - p.y, ch.build) : null),
       flash: whiteFlash ? '#ffffff' : blockFlash ? '#bfe3ff' : null,
       vx: p.vx,
       clock: this.clock,
@@ -1883,6 +1884,18 @@ export class Renderer {
   }
 }
 
+// 回避の回転（見た目だけ）。前転は丸まった体を進む向きへ、バク転は伸ばした体で弧を描きながら後ろへ、
+// EVADE_SPIN コマで1回転させる。ctx に回転を掛け、体を持ち上げる高さを返す
+// 戻り値の spin（回転角）と spinY（体の真ん中を置く高さ）を paintFighter に渡す。回らないコマは null
+export function evadeSpin(f, dir, facing, groundY, build) {
+  if (f >= EVADE_SPIN) return null;
+  const k = Math.max(0, f) / EVADE_SPIN;
+  const forward = dir === facing;
+  // 前転は丸めた体が地面を転がる高さ、バク転は弧を描いて跳ぶ
+  const spinY = forward ? groundY - 46 * build : groundY - 110 * build - Math.sin(Math.PI * k) * 70;
+  return { spin: dir * k * Math.PI * 2, spinY };
+}
+
 // なびく布（はちまき・髪・マフラー）。キャラの見分けどころ
 const CLOTH = {
   kagari: { at: 'top', len: 18, n: 6, w: 11, droop: 1.2, color: 'trim' },
@@ -1894,6 +1907,19 @@ const CLOTH = {
 
 // キャラ1体を描く。キャラ選択画面の肖像でも使う
 export function paintFighter(ctx, ch, pal, pose, x, groundScreenY, facing, o = {}) {
+  // 回転して描く（回避の前転・バク転）：体の真ん中を (x, spinY) に置き、そこを中心に spin だけ回す
+  if (o.spin !== undefined && o.spin !== null) {
+    const sk0 = solve(pose, ch);
+    const cx = x + facing * sk0.top.x * 0.45;
+    const cy = groundScreenY - (sk0.top.y * 0.45 - sk0.low);
+    ctx.save();
+    ctx.translate(x, o.spinY);
+    ctx.rotate(o.spin);
+    ctx.translate(-cx, -cy);
+    paintFighter(ctx, ch, pal, pose, x, groundScreenY, facing, { ...o, spin: null });
+    ctx.restore();
+    return;
+  }
   const sk = solve(pose, ch);
   const k = sk.k;
   const flash = o.flash;

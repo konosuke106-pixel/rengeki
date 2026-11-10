@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- 回避（前転・バク転）の見た目の確認用。コマを横に並べて描く。開発サーバーで http://localhost:5180/tools/evade.html -->
+<html lang="ja"><head><meta charset="utf-8">
+<style>html, body { margin: 0; background: #2a1830; } canvas { display: block; }</style></head>
+<body><canvas id="c" width="1600" height="560"></canvas>
+<script type="module">
+import { CHARS } from '../src/characters.js';
+import { POSES } from '../src/poses.js';
+import { paintFighter, evadeSpin } from '../src/render.js';
+import { EVADE_SPIN } from '../src/poses.js';
+
+const char = new URLSearchParams(location.search).get('char') || 'kagari';
+const ch = CHARS[char];
+const pal = ch.palettes[0];
+const ctx = document.getElementById('c').getContext('2d');
+const frames = [0, 2, 4, 6, 8, 10, 12, 14, 18];
+const rows = [
+  { label: '前転（右へ）', facing: 1, dir: 1, pose: POSES.rollTuck, ground: 250 },
+  { label: 'バク転（左へ）', facing: 1, dir: -1, pose: POSES.flip, ground: 520 },
+];
+ctx.font = '20px sans-serif';
+for (const r of rows) {
+  ctx.fillStyle = '#f5ecd6';
+  ctx.fillText(r.label, 10, r.ground - 210);
+  ctx.strokeStyle = '#55406a';
+  ctx.beginPath();
+  ctx.moveTo(0, r.ground);
+  ctx.lineTo(1600, r.ground);
+  ctx.stroke();
+  frames.forEach((f, k) => {
+    const x = 90 + k * 175;
+    ctx.save();
+    const pose = f >= EVADE_SPIN ? POSES.slipEnd : r.pose;
+    paintFighter(ctx, ch, pal, pose, x, r.ground, r.facing, { clock: 10, ...evadeSpin(f, r.dir, r.facing, r.ground, ch.build) });
+    ctx.restore();
+    ctx.fillStyle = '#c8b8d8';
+    ctx.fillText(`${f}`, x - 6, r.ground + 24);
+  });
+}
+document.title = 'ready';
+</script></body></html>

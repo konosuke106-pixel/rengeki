@@ -36,14 +36,17 @@ export const POSES = {
   cast: { t: 22, af: [92, 92], ab: [84, 88], lf: [52, 4], lb: [-46, -52] },
   rising: { t: -14, af: [170, 178], ab: [-10, 60], lf: [108, 158], lb: [14, -28] },
   slam: { t: 46, af: [40, 28], ab: [48, 36], lf: [66, -8], lb: [-40, -66] },
-  // 回避：前へは低く倒れ込んで腕を後ろに流す駆け抜け、後ろへは構えたまま反って飛びのく
-  slipF: { t: 52, af: [-24, 20], ab: [-52, -16], lf: [78, 8], lb: [-68, -104] },
-  slipB: { t: -26, af: [96, 150], ab: [74, 140], lf: [44, -28], lb: [-36, -12] },
+  // 回避：前へは体を丸めて前転、後ろへは体を伸ばしてバク転（回転は render.js で付ける）
+  rollTuck: { t: 118, af: [-30, 60], ab: [-40, 50], lf: [72, -112], lb: [62, -118] },
+  flip: { t: -6, af: [176, 182], ab: [170, 178], lf: [8, 4], lb: [-8, -4] },
   slipEnd: { t: 18, af: [64, 126], ab: [32, 112], lf: [58, -16], lb: [-22, -72] },
   parry: { t: -4, af: [120, 60], ab: [100, 150], lf: [36, -4], lb: [-30, -40] },
   dive: { t: 20, af: [70, 120], ab: [-40, 10], lf: [48, 44], lb: [-30, -90] },
   slide: { t: -50, af: [40, 80], ab: [-60, -20], lf: [88, 90], lb: [60, 20] },
 };
+
+// 回避で1回転するコマ数（転がって移動している間）。見た目だけの値
+export const EVADE_SPIN = 16;
 
 const lerpVal = (a, b, k) => a + (b - a) * k;
 
@@ -81,8 +84,8 @@ export function targetPose(p, move) {
     case 'dash':
       return p.dashDir === p.facing ? POSES.dashF : POSES.dashB;
     case 'evade':
-      if (p.f >= 18) return POSES.slipEnd;
-      return p.dashDir === p.facing ? POSES.slipF : POSES.slipB;
+      if (p.f >= EVADE_SPIN) return POSES.slipEnd;
+      return p.dashDir === p.facing ? POSES.rollTuck : POSES.flip;
     case 'air':
       return p.vy > 0 ? POSES.jump : POSES.fall;
     case 'attack': {
