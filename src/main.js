@@ -271,8 +271,11 @@ const GUIDE_STEPS = [
     },
   },
   {
-    title: 'かわす', touch: 'スティックを相手と反対へ素早くはじこう。後ろへ飛びのいて攻撃をかわせるよ', keys: '相手と反対の方向（A か D）を素早く2回押そう。後ろへ飛びのいて攻撃をかわせるよ', hint: '#stick-base', dummy: 'attack',
-    done: (s, p) => p.st === 'dash' && p.dashDir !== p.facing,
+    title: 'かわす',
+    touch: 'スティックを倒しながら「ガード」を押そう。その方向へ転がって攻撃をすり抜けるよ（前に転がれば相手の後ろへ回れる）',
+    keys: 'A か D を押しながらスペースを押そう。その方向へ転がって攻撃をすり抜けるよ（前に転がれば相手の後ろへ回れる）',
+    hint: '[data-guard], #stick-base', dummy: 'attack',
+    done: (s, p) => p.st === 'evade' || (p.st === 'dash' && p.dashDir !== p.facing),
   },
   {
     title: '攻撃', touch: '近づいて「弱」を押し、相手に当てよう', keys: '近づいて J を押し、相手に当てよう', hint: '[data-btn="A"]',

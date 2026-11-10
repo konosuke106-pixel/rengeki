@@ -26,4 +26,8 @@ export const BTN = {
 };
 export const JUST_WINDOW = 5;   // ジャストガードの受付（当たる何コマ前までに押し始めればよいか）
 export const STAGGER = 28;      // ジャストガードされた側がよろける長さ
+// 回避（左右を押しながらガードを押す）：全体のコマ数・すり抜けるコマ数・速さ
+export const EVADE_TOTAL = 26;
+export const EVADE_INV = 14;
+export const EVADE_SPEED = 9;
 export const ATTACK_MASK = BTN.A | BTN.B | BTN.C | BTN.S | BTN.T | BTN.X;

@@ -98,6 +98,12 @@ export function createCpu(levelName = 'normal', seed = 12345) {
       const guarding = me.st === 'guard' || me.st === 'block';
       // 当たる直前に押し始めるとジャストガードになる。弱いCPUほど、そのタイミングでは押さない
       const late = op.st === 'attack' && firstBox && firstBox.from - op.f <= JUST_WINDOW + 1;
+      // ときどき回避（左右＋ガードの押し始め）で攻撃をすり抜ける。前に転がって背後へ回ることもある
+      if (!guarding && me.st !== 'block' && rand() < lv.block / 14) {
+        wait = lv.react;
+        hold = 0;
+        return BTN.G | (rand() < 0.6 ? back : fwd);
+      }
       if (guarding || (rand() < lv.block / 6 && (!late || rand() < lv.just))) {
         hold = BTN.G | (low ? BTN.D : 0);
         holdT = 12;

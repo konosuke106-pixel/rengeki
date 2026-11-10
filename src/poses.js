@@ -36,6 +36,8 @@ export const POSES = {
   cast: { t: 22, af: [92, 92], ab: [84, 88], lf: [52, 4], lb: [-46, -52] },
   rising: { t: -14, af: [170, 178], ab: [-10, 60], lf: [108, 158], lb: [14, -28] },
   slam: { t: 46, af: [40, 28], ab: [48, 36], lf: [66, -8], lb: [-40, -66] },
+  roll: { t: 80, af: [140, 40], ab: [120, 30], lf: [120, -20], lb: [90, -50] },
+  rollEnd: { t: 30, af: [70, 120], ab: [40, 100], lf: [80, -10], lb: [20, -80] },
   parry: { t: -4, af: [120, 60], ab: [100, 150], lf: [36, -4], lb: [-30, -40] },
   dive: { t: 20, af: [70, 120], ab: [-40, 10], lf: [48, 44], lb: [-30, -90] },
   slide: { t: -50, af: [40, 80], ab: [-60, -20], lf: [88, 90], lb: [60, 20] },
@@ -76,6 +78,8 @@ export function targetPose(p, move) {
       return POSES.crouch;
     case 'dash':
       return p.dashDir === p.facing ? POSES.dashF : POSES.dashB;
+    case 'evade':
+      return p.f < 16 ? POSES.roll : POSES.rollEnd;
     case 'air':
       return p.vy > 0 ? POSES.jump : POSES.fall;
     case 'attack': {

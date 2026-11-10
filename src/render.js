@@ -531,6 +531,10 @@ export class Renderer {
           this.spark(e.x, sy, 14, '#ffd983', 10);
           this.pushText('耐えた', e.x, sy - 40, '#ffd983', 34, -0.05);
           break;
+        case 'evade':
+          playSound('dash');
+          this.dust(e.x, 10);
+          break;
         case 'guardCrush':
           playSound('h');
           this.shake = Math.max(this.shake, 12);

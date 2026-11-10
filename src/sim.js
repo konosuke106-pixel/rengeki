@@ -2,7 +2,7 @@
 // 状態はすべて素のオブジェクトなので複製・巻き戻しができ、将来のオンライン対戦に使える。
 import {
   BTN, ATTACK_MASK, GRAVITY, STAGE_HALF, MAX_SEP, ROUND_FRAMES, WINS_NEEDED, MAX_ROUNDS,
-  METER_MAX, SUPER_COST, BUFFER_FRAMES, JUST_WINDOW, STAGGER,
+  METER_MAX, SUPER_COST, BUFFER_FRAMES, JUST_WINDOW, STAGGER, EVADE_TOTAL, EVADE_INV, EVADE_SPEED,
 } from './config.js';
 import { CHARS } from './characters.js';
 import { STAGE_INFO } from './stages.js';
@@ -245,6 +245,17 @@ function groundNeutral(s, p, o) {
   if (!(p.st === 'guard' && (mask & BTN.G))) faceOpponent(p, o);
   if (tryMove(s, p, null)) return;
   // 技や着地の硬直が終わる直前に入れたダッシュも出るよう、少し猶予を持たせる
+  // 回避：左右を押しながらガードを押し始めると、その方向へ転がる（出始めは攻撃をすり抜ける）
+  if ((p.edge & BTN.G) && (mask & (BTN.L | BTN.R))) {
+    p.st = 'evade';
+    p.f = 0;
+    p.dashDir = mask & BTN.R ? 1 : -1;
+    p.inv = Math.max(p.inv, EVADE_INV);
+    p.crouching = false;
+    p.guardT = -99; // 回避した時はジャストガードにしない
+    emit(s, { t: 'evade', x: p.x, by: p.idx });
+    return;
+  }
   // ガードボタンを押している間はその場で構える（歩き・ジャンプ・ダッシュはしない。下も押せばしゃがんで構える）
   if (mask & BTN.G) {
     if (p.st !== 'guard') p.f = 0;
@@ -483,6 +494,11 @@ function updateFighter(s, p, o) {
         emit(s, { t: 'jump', x: p.x, by: p.idx });
       }
       break;
+    case 'evade':
+      // 前半は素早く転がり、後半は減速して起き上がる（終わり際は隙）
+      p.vx = p.dashDir * EVADE_SPEED * (p.f < 16 ? 1 : 0.3);
+      if (p.f >= EVADE_TOTAL) toAfterMove(p);
+      break;
     case 'land':
       p.vx *= 0.6;
       if (p.f >= p.landT) toAfterMove(p);
@@ -675,7 +691,7 @@ function applyPhysics(s, p) {
   } else {
     p.y = 0;
     p.x += p.vx;
-    if (p.st !== 'walk' && p.st !== 'dash') {
+    if (p.st !== 'walk' && p.st !== 'dash' && p.st !== 'evade') {
       const hasMotionNow = p.st === 'attack';
       p.vx *= hasMotionNow ? 0.8 : 0.92;
       if (Math.abs(p.vx) < 0.05) p.vx = 0;
@@ -1171,7 +1187,8 @@ function pushApart(s) {
   const [p, q] = s.ps;
   const pm = moveOf(p);
   const qm = moveOf(q);
-  const skip = p.st === 'thrown' || q.st === 'thrown' || (pm && pm.noPush && p.f <= pm.total) || (qm && qm.noPush && q.f <= qm.total);
+  // 回避中は相手をすり抜けられる（前へ転がって背後に回れる）
+  const skip = p.st === 'thrown' || q.st === 'thrown' || p.st === 'evade' || q.st === 'evade' || (pm && pm.noPush && p.f <= pm.total) || (qm && qm.noPush && q.f <= qm.total);
   if (!skip) {
     const pc = CHARS[p.char];
     const qc = CHARS[q.char];

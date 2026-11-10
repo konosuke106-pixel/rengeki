@@ -39,6 +39,7 @@ test('後ろを押すだけではガードにならず、ガードボタンで�
 test('ガードボタンを押している間は、その場で構えて歩かない・跳ばない', () => {
   const s = ready('kagari', 'kagari', 400);
   const x0 = s.ps[0].x;
+  step(s, [BTN.G, 0]); // 先にガードを押す（右を押しながら押し始めると回避になる）
   for (let i = 0; i < 30; i++) step(s, [BTN.G | BTN.R | (i === 10 ? BTN.U : 0), 0]);
   assert.equal(s.ps[0].st, 'guard');
   assert.ok(Math.abs(s.ps[0].x - x0) < 1, '歩かない');

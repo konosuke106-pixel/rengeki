@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node tools/serve.mjs",
-    "test": "node --test tests/sim.test.mjs tests/rollback.test.mjs tests/dummy.test.mjs tests/dash.test.mjs tests/newchars.test.mjs tests/fivechars.test.mjs tests/fourchars.test.mjs tests/stages.test.mjs tests/regress.test.mjs tests/guard.test.mjs tests/charge.test.mjs",
+    "test": "node --test tests/sim.test.mjs tests/rollback.test.mjs tests/dummy.test.mjs tests/dash.test.mjs tests/newchars.test.mjs tests/fivechars.test.mjs tests/fourchars.test.mjs tests/stages.test.mjs tests/regress.test.mjs tests/guard.test.mjs tests/charge.test.mjs tests/evade.test.mjs",
     "build": "node tools/build.mjs",
     "pages": "npm test && npm run build && node -e \"require('fs').rmSync('dist/rengeki.html')\""
   }
