@@ -162,6 +162,7 @@ function stageCard(id, name, note, home) {
   const nt = document.createElement('div');
   nt.className = 'stage-note';
   nt.textContent = note;
+  if (!home && STAGE_INFO[id].plain) btn.classList.add('plain');
   btn.append(cv, nm, nt);
   btn.addEventListener('click', () => {
     playSound('ui');

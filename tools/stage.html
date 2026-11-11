@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- ステージの見た目の確認用。試合開始すぐの画面と、ステージ選択の見本の絵を描く。開発サーバーで
+     http://localhost:5180/tools/stage.html?stage=ステージID -->
+<html lang="ja"><head><meta charset="utf-8">
+<style>html, body { margin: 0; background: #120d18; } canvas { display: block; }</style></head>
+<body><canvas id="c" width="1280" height="720"></canvas><canvas id="p" width="320" height="180"></canvas>
+<script type="module">
+import { createMatch, step } from '../src/sim.js';
+import { Renderer, paintStagePreview } from '../src/render.js';
+
+const stage = new URLSearchParams(location.search).get('stage') || 'arena';
+const canvas = document.getElementById('c');
+const renderer = new Renderer(canvas);
+renderer.scale = 1;
+renderer.extraX = 0;
+renderer.setStage(stage);
+const s = createMatch({ p1: 'kagari', p2: 'goutetsu', stage });
+for (let i = 0; i < 120; i++) step(s, [0, 0]);
+renderer.draw(s, {});
+paintStagePreview(document.getElementById('p'), stage);
+document.title = 'ready';
+</script></body></html>

@@ -26,7 +26,7 @@ function until(s, n, p1 = 0, p2 = 0) {
 }
 
 test('全ステージに名前と仕掛けの説明がある', () => {
-  assert.equal(STAGE_IDS.length, 16);
+  assert.equal(STAGE_IDS.length, 17);
   for (const id of STAGE_IDS) {
     assert.ok(STAGE_INFO[id].name && STAGE_INFO[id].note && STAGE_INFO[id].gim, id);
   }
@@ -42,6 +42,17 @@ test('ギミックなしなら、どのステージでも何も起きない', ()
     assert.equal(s.ps[0].hp + s.ps[1].hp, CHARS.kagari.hp * 2, `${id} ダメージなし`);
     assert.equal(s.gim.haz.length, 0);
   }
+});
+
+test('闘技場：ギミック「あり」でも何も起きない普通の舞台', () => {
+  const s = ready('arena');
+  const xs = s.ps.map((p) => p.x);
+  run(s, 2000);
+  assert.deepEqual(s.ps.map((p) => p.x), xs);
+  assert.equal(s.ps[0].hp + s.ps[1].hp, CHARS.kagari.hp * 2);
+  assert.equal(s.ps[0].meter + s.ps[1].meter, 0);
+  assert.equal(s.gim.haz.length, 0);
+  assert.equal(STAGE_IDS[0], 'arena', '選択画面で「おまかせ」の次に出る');
 });
 
 test('夕焼け峠：予告のあと突風が吹き、2人とも同じ向きに流される', () => {

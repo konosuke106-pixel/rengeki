@@ -1,7 +1,7 @@
 // ステージの一覧と並び順、戦闘に関わる仕掛け（ギミック）の数値。見た目は render.js の STAGES。
 // ギミックはすべて「試合が始まってからのコマ数」だけで動く（乱数・時刻は使わない。オンラインでずれないため）
 export const STAGE_IDS = [
-  'sunset', 'foundry', 'rain', 'storm', 'bamboo', 'moonroof', 'snow', 'festival',
+  'arena', 'sunset', 'foundry', 'rain', 'storm', 'bamboo', 'moonroof', 'snow', 'festival',
   'onirock', 'harbor', 'autumn', 'swamp', 'mirror', 'skytower', 'castle', 'powder',
 ];
 
@@ -18,6 +18,8 @@ export const STAGE_IDS = [
 //   gravity… 重力の倍率
 //   barrels… 床の樽。攻撃や飛び道具が当たると爆発し、respawn コマ後に元に戻る
 export const STAGE_INFO = {
+  // 仕掛けのない普通の舞台。どのキャラの「おまかせ」でもなく、選んだときだけ使う
+  arena: { name: '闘技場', note: '仕掛けなし：腕だけで勝負する舞台', plain: true, gim: {} },
   sunset: { name: '夕焼け峠', note: '突風：ときどき風で流される', gim: { wind: { every: 900, warn: 60, len: 180, push: 1.8 } } },
   foundry: { name: '鉄の製錬所', note: '熱い壁：端に叩きつけられるとやけど', gim: { hotWall: { dmg: 40, stun: 24, kb: 6, launch: 9, kd: true, hs: 10, fx: 'h' } } },
   rain: { name: '雨の社', note: 'ぬかるみ：攻撃を受けると遠くまで滑る', gim: { slip: 0.94 } },

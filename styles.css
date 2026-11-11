@@ -132,7 +132,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px s
 .stage-note { font-size: 12px; font-weight: 700; color: var(--paper-dim); padding: 0 10px 8px; line-height: 1.4; }
 .stage-card.home .stage-name { color: var(--gold); }
 #stage-list.no-gimmick .stage-note { text-decoration: line-through; opacity: .5; }
-#stage-list.no-gimmick .stage-card.home .stage-note { text-decoration: none; opacity: 1; }
+#stage-list.no-gimmick .stage-card.home .stage-note, #stage-list.no-gimmick .stage-card.plain .stage-note { text-decoration: none; opacity: 1; }
 
 /* 戦闘 */
 #screen-battle { background: #000; display: flex; align-items: center; justify-content: center; touch-action: none; }

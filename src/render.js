@@ -15,6 +15,10 @@ const SKY_PAD = (MAX_VIEW_W - VIEW_W) / 2;
 const SFX_TEXT = { l: ['パシッ', 'ビシッ'], m: ['バキッ', 'ドカッ'], h: ['ドゴォ', 'ズガッ'], s: ['ズドン', 'ゴォッ'] };
 
 const STAGES = {
+  arena: {
+    sky: ['#3a5a8c', '#5a7aa8', '#8aa0c0', '#c8b898'], sun: '#fff0c8', sunXY: [980, 150], sunR: 60,
+    far: '#5a4a5e', near: '#6e5844', floor: '#b08a5a', floorLine: '#8a6a42', name: '闘技場', arena: true,
+  },
   sunset: {
     sky: ['#f6bb45', '#f2922f', '#e45a2b', '#b5303a'], sun: '#ffe9b4', sunXY: [860, 250], sunR: 150,
     far: '#7d2440', near: '#3f1531', floor: '#2a1024', floorLine: '#51203f', name: '夕焼け峠',
@@ -377,6 +381,79 @@ function buildStage(id) {
         ctx.fill();
       }
       ctx.fillRect(1256, 120, 8, 60);
+    }
+    if (st.arena) {
+      // 石造りの円形闘技場：上段の観客席（アーチの中に観客の頭）、下段の壁、旗と松明
+      const top = 300;
+      ctx.fillStyle = '#4a3a30';
+      ctx.fillRect(0, top - 20, 2700, 320);
+      ctx.fillStyle = st.near;
+      ctx.fillRect(0, top, 2700, 300);
+      const crowd = ['#c0503a', '#e0b050', '#4a6a9a', '#e8dcc0', '#6a9a5a', '#a04a7a'];
+      const r = seeded(53);
+      for (let x = 20; x < 2700; x += 110) {
+        ctx.fillStyle = '#2a1e1a';
+        ctx.beginPath();
+        ctx.moveTo(x, top + 120);
+        ctx.lineTo(x, top + 40);
+        ctx.arc(x + 40, top + 40, 40, Math.PI, 0);
+        ctx.lineTo(x + 80, top + 120);
+        ctx.fill();
+        for (let k = 0; k < 3; k++) {
+          ctx.fillStyle = crowd[Math.floor(r() * crowd.length)];
+          const cx = x + 16 + k * 24;
+          const cy = top + 78 + r() * 14;
+          ctx.fillRect(cx - 9, cy + 8, 18, 40);
+          ctx.fillStyle = '#e0b48a';
+          ctx.beginPath();
+          ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // 段の境目の帯と、下段の石積み
+      ctx.fillStyle = '#4a3a30';
+      ctx.fillRect(0, top + 130, 2700, 18);
+      ctx.fillStyle = '#5e4a3a';
+      for (let y = top + 160; y < 600; y += 40) {
+        for (let x = (y / 40) % 2 ? 0 : 60; x < 2700; x += 120) ctx.fillRect(x + 3, y, 114, 34);
+      }
+      // 上の縁と、交互の色の旗
+      ctx.fillStyle = '#4a3a30';
+      for (let x = 0; x < 2700; x += 40) ctx.fillRect(x, top - 40, 26, 22);
+      for (let x = 160; x < 2700; x += 440) {
+        ctx.fillStyle = '#2a1e1a';
+        ctx.fillRect(x - 3, top - 150, 6, 130);
+        ctx.fillStyle = (x / 440) % 2 < 1 ? '#c0302a' : '#e0b040';
+        ctx.beginPath();
+        ctx.moveTo(x + 3, top - 146);
+        ctx.lineTo(x + 70, top - 132);
+        ctx.lineTo(x + 3, top - 100);
+        ctx.fill();
+      }
+      // 下段の松明と、垂れ幕
+      for (let x = 380; x < 2700; x += 440) {
+        ctx.fillStyle = '#2a1e1a';
+        ctx.fillRect(x - 4, top + 180, 8, 50);
+        ctx.fillStyle = '#ff9a3a';
+        ctx.beginPath();
+        ctx.ellipse(x, top + 168, 12, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffe08a';
+        ctx.beginPath();
+        ctx.ellipse(x, top + 172, 6, 11, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#8a2a24';
+        ctx.fillRect(x + 160, top + 160, 70, 120);
+        ctx.fillStyle = '#e0b040';
+        ctx.fillRect(x + 160, top + 160, 70, 8);
+        ctx.beginPath();
+        ctx.arc(x + 195, top + 215, 20, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#8a2a24';
+        ctx.beginPath();
+        ctx.arc(x + 195, top + 215, 13, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     if (st.torii) {
       ctx.fillStyle = st.near;
