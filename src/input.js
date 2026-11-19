@@ -64,15 +64,26 @@ export class InputManager {
       }
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('blur', () => {
-      this.keys.clear();
-      this.tappedKeys.clear();
-      this.touchTap = 0;
-      this.touchDir = 0;
-      this.touchBtn = 0;
-      this.touchGuard = false;
-      this.flickQueue = [];
-    });
+    this.touchReleasers = [];  // 画面のスティック・ボタンを放す処理（bindTouch が入れる）
+    window.addEventListener('blur', () => this.releaseAll());
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') this.releaseAll();
+      });
+    }
+  }
+
+  // 押しているものを全部放す。指を離した知らせが届かないまま固まるのを防ぐため、
+  // アプリの切り替え・画面の切り替え・一時停止のときに呼ぶ
+  releaseAll() {
+    this.keys.clear();
+    this.tappedKeys.clear();
+    for (const fn of this.touchReleasers) fn();
+    this.touchTap = 0;
+    this.touchDir = 0;
+    this.touchBtn = 0;
+    this.touchGuard = false;
+    this.flickQueue = [];
   }
 
   readPad(i) {
@@ -172,10 +183,11 @@ export class InputManager {
     };
 
     zone.addEventListener('pointerdown', (e) => {
-      if (stickId !== null) return;
+      // 前の指を追えているなら2本目は無視。前の指の「離した」が届かず残っているだけなら、新しい指に替える
+      if (stickId !== null && zone.hasPointerCapture && zone.hasPointerCapture(stickId)) return;
       e.preventDefault();
       stickId = e.pointerId;
-      zone.setPointerCapture(e.pointerId);
+      try { zone.setPointerCapture(e.pointerId); } catch { /* 捕捉できなくても操作は有効 */ }
       const rect = zone.getBoundingClientRect();
       cx = e.clientX;
       cy = e.clientY;
@@ -189,8 +201,8 @@ export class InputManager {
       moveKnob(e.clientX - cx, e.clientY - cy, e.timeStamp);
     });
     const endStick = (e) => {
-      if (e.pointerId !== stickId) return;
-      if (e.type === 'pointerup') flick(flickBit(lastDx, lastDy, e.timeStamp - leftCenterAt, true));
+      if (e && e.pointerId !== stickId) return;
+      if (e && e.type === 'pointerup') flick(flickBit(lastDx, lastDy, e.timeStamp - leftCenterAt, true));
       stickId = null;
       this.touchDir = 0;
       knob.style.transform = '';
@@ -200,6 +212,8 @@ export class InputManager {
     };
     zone.addEventListener('pointerup', endStick);
     zone.addEventListener('pointercancel', endStick);
+    zone.addEventListener('lostpointercapture', endStick);  // 指の追跡が切れた（離した知らせが来ない時も）
+    this.touchReleasers.push(() => endStick());
 
     root.querySelectorAll('[data-btn]').forEach((el) => {
       const bit = BTN[el.dataset.btn];
@@ -216,6 +230,8 @@ export class InputManager {
       });
       el.addEventListener('pointerup', release);
       el.addEventListener('pointercancel', release);
+      el.addEventListener('lostpointercapture', release);
+      this.touchReleasers.push(release);
     });
 
     const guard = root.querySelector('[data-guard]');
@@ -231,5 +247,7 @@ export class InputManager {
     });
     guard.addEventListener('pointerup', releaseGuard);
     guard.addEventListener('pointercancel', releaseGuard);
+    guard.addEventListener('lostpointercapture', releaseGuard);
+    this.touchReleasers.push(releaseGuard);
   }
 }

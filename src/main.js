@@ -48,6 +48,7 @@ const NET_TIMEOUT_MS = 8000;
 function show(id) {
   screens.forEach((sel) => { $(sel).hidden = sel !== id; });
   document.body.dataset.screen = id.replace('#screen-', '');
+  input.releaseAll(); // 前の画面で押していたスティックやボタンを持ち越さない
 }
 
 /* ---------- キャラ選択 ---------- */
@@ -510,6 +511,7 @@ function togglePause(force) {
   if (!app.match || document.body.dataset.screen !== 'battle' || app.resultShown) return;
   app.paused = force !== undefined ? force : !app.paused;
   $('#pause').hidden = !app.paused;
+  input.releaseAll();
   // オンラインでは止められない。メニューを開いている間も試合は進む
   $('#btn-retry').hidden = app.mode === 'online';
   $('#pause h2').textContent = app.mode === 'online' ? T('試合は続いています') : T('一時停止');
