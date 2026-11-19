@@ -99,3 +99,9 @@ test('言語を変えても試合は同じ', () => {
   assert.equal(run('es'), ja);
   setLang('ja');
 });
+
+test('タイトルのロゴはどの言語でも同じ字体（中国語の字体の差し替えを受けない）', () => {
+  const css = readFileSync(new URL('styles.css', root), 'utf8');
+  const logo = css.match(/^\.logo\s*\{([^}]*)\}/m);
+  assert.ok(logo && /font-family:\s*"Dela Gothic One"/.test(logo[1]), '.logo に "Dela Gothic One" を直接指定する');
+});

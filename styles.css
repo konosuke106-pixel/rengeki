@@ -52,7 +52,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px s
   position: absolute; left: 0; right: 0; bottom: 0; height: 26%; background: var(--ink);
   clip-path: polygon(0 62%, 14% 28%, 26% 58%, 44% 8%, 60% 54%, 76% 26%, 100% 66%, 100% 100%, 0 100%);
 }
-.logo { position: relative; margin: 0; font-family: var(--display); font-weight: 400; line-height: .95; font-size: min(34vh, 21vw); color: var(--ink); letter-spacing: -.03em; }
+.logo { position: relative; margin: 0; font-family: "Dela Gothic One", sans-serif; font-weight: 400; line-height: .95; font-size: min(34vh, 21vw); color: var(--ink); letter-spacing: -.03em; }
 .logo-sub { position: relative; font-weight: 900; font-size: clamp(13px, 3.2vh, 24px); letter-spacing: .34em; color: var(--ink); margin-top: 1.5vh; }
 .tagline { position: relative; font-weight: 700; font-size: clamp(12px, 3vh, 20px); margin: 1vh 0 8vh; color: var(--ink); }
 .title-menu {
