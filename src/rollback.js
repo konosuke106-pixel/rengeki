@@ -5,6 +5,8 @@ import { step, cloneState, stateHash } from './sim.js';
 
 const HASH_EVERY = 120;
 const SEND_WINDOW = 24;
+// 試合が終わって相手が最後の入力まで受け取ったら、送るのは「まだいます」の合図だけにする（通信の節約）
+const IDLE_SEND_EVERY = 30;
 
 export class RollbackSession {
   constructor({ state, localIdx, send, delay = 2, maxPredict = 10, generation = 0, sendEvery = 1 }) {
@@ -179,7 +181,8 @@ export class RollbackSession {
   }
 
   sendInputs(now) {
-    if (this.tickCount % this.sendEvery !== 0) return;
+    const idle = this.overFrame !== null && this.confirmedOver && this.peerAck >= this.overFrame;
+    if (this.tickCount % (idle ? IDLE_SEND_EVERY : this.sendEvery) !== 0) return;
     const start = Math.max(this.peerAck + 1, this.localUpTo - SEND_WINDOW + 1, 0);
     const masks = [];
     for (let f = start; f <= this.localUpTo; f++) masks.push(this.local.get(f) || 0);

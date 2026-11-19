@@ -13,17 +13,20 @@ function seededRandom(seed) {
   };
 }
 
-function runDuo({ lag, jitter = 0, loss = 0, seed = 1, p1 = 'kagari', p2 = 'shizuku', ticks = 4000, driftEvery = 0 }) {
+function runDuo({ lag, jitter = 0, loss = 0, seed = 1, p1 = 'kagari', p2 = 'shizuku', ticks = 4000, driftEvery = 0, sendEvery = 1, delay = 2, after = 0 }) {
   const rand = seededRandom(seed);
   const wire = [];
   let now = 0;
+  const sent = { during: 0, after: 0 };
+  let overAt = null;
   const mkSend = (to) => (msg) => {
+    sent[overAt === null ? 'during' : 'after']++;
     if (rand() < loss) return;
     const copy = JSON.parse(JSON.stringify(msg));
     wire.push({ at: now + lag + rand() * jitter, to, msg: copy });
   };
-  const a = new RollbackSession({ state: createMatch({ p1, p2 }), localIdx: 0, send: mkSend(1) });
-  const b = new RollbackSession({ state: createMatch({ p1, p2 }), localIdx: 1, send: mkSend(0) });
+  const a = new RollbackSession({ state: createMatch({ p1, p2 }), localIdx: 0, send: mkSend(1), sendEvery, delay });
+  const b = new RollbackSession({ state: createMatch({ p1, p2 }), localIdx: 1, send: mkSend(0), sendEvery, delay });
   const cpuA = createCpu('hard', seed + 10);
   const cpuB = createCpu('hard', seed + 20);
   const shown = [0, 0];
@@ -39,9 +42,10 @@ function runDuo({ lag, jitter = 0, loss = 0, seed = 1, p1 = 'kagari', p2 = 'shiz
     shown[0] += a.tick(cpuA(a.state, 0), now).events.length;
     // 片方の端末だけ描画が遅れる状況も再現する
     if (!driftEvery || t % driftEvery !== 0) shown[1] += b.tick(cpuB(b.state, 1), now).events.length;
-    if (a.confirmedOver && b.confirmedOver) break;
+    if (a.confirmedOver && b.confirmedOver && overAt === null) overAt = t;
+    if (overAt !== null && t - overAt >= after) break;
   }
-  return { a, b, shown };
+  return { a, b, shown, sent, overAt, now };
 }
 
 // 両者が共通して確定したコマの状態を比べる
@@ -123,4 +127,23 @@ test('状態指紋が食い違えば検出できる', () => {
   a.localHashes.set(120, stateHash(a.state));
   a.receive({ t: 'h', g: 0, f: 120, h: 1 }, 0);
   assert.equal(a.desync, true);
+});
+
+test('通信の節約：試合が終わって結果を見ている間は、ほとんど送らない（でも切断扱いにはならない）', () => {
+  const { a, b, sent, overAt, now } = runDuo({ lag: 50, jitter: 30, loss: 0.05, seed: 5, ticks: 20000, after: 600 });
+  assert.ok(overAt !== null, '決着した');
+  // 10秒（600コマ）で2人合わせて送るのは数十件まで（以前は毎コマで1200件）
+  assert.ok(sent.after < 80, `決着後に送った数 ${sent.after}`);
+  assert.ok(a.silentFor(now) < 3000 && b.silentFor(now) < 3000, '相手の声が途切れていない');
+});
+
+test('通信の節約：中継のとき（4コマまとめ・遅らせ4）でも食い違わず決着し、送る数は4分の1', () => {
+  for (const seed of [2, 3, 4]) {
+    const { a, b, sent, overAt } = runDuo({ lag: 70, jitter: 50, loss: 0.05, seed, ticks: 20000, sendEvery: 4, delay: 4 });
+    assert.ok(overAt !== null, `種 ${seed} で決着しない`);
+    assert.equal(a.desync || b.desync, false);
+    sameAtConfirmed(a, b);
+    const perSec = sent.during / (overAt / 60) / 2;
+    assert.ok(perSec <= 17, `1人あたり毎秒 ${perSec.toFixed(1)} 件`);
+  }
 });

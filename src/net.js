@@ -209,7 +209,7 @@ export class OnlineLink {
     await this.transport.open();
     this.helloTimer = setInterval(() => {
       if (!this.peerId) this.transport.send({ t: 'hello', host: this.host, id: this.transport.id });
-    }, 500);
+    }, 2000); // 入ってきた側がすぐ名乗り、部屋主はそれに答えるので、繰り返しはゆっくりでよい
     this.transport.send({ t: 'hello', host: this.host, id: this.transport.id });
     if (!this.host) {
       this.joinTimer = setTimeout(() => {

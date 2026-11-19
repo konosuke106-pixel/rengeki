@@ -16,6 +16,7 @@ function makeWorld({ seed = 1, lag = 80, jitter = 60, loss = 0 } = {}) {
     const tr = {
       id, onmessage: null,
       send(m) {
+        person.sent = (person.sent || 0) + 1;
         for (const p of world.people) {
           if (p.tr === tr || rand() < loss) continue;
           world.queue.push({ at: world.now + lag + rand() * jitter, to: p, m });
@@ -23,7 +24,7 @@ function makeWorld({ seed = 1, lag = 80, jitter = 60, loss = 0 } = {}) {
       },
       close() { tr.closed = true; },
     };
-    const person = { id, tr, match: null };
+    const person = { id, tr, match: null, sent: 0 };
     person.mm = new Matchmaker({
       transport: tr,
       makeRoom: () => `room${++world.rooms}`,
@@ -69,8 +70,10 @@ test('2人なら組になり、片方が部屋主になる', () => {
 test('1人だけなら誰とも組にならない', () => {
   const w = makeWorld();
   const a = w.join('aaa');
-  w.run(5000);
+  w.run(10000);
   assert.equal(a.match, null);
+  // 通信の節約：探しているだけなら 2.5秒に1回しか声をかけない
+  assert.ok(a.sent <= 4, `10秒で ${a.sent} 回`);
 });
 
 test('3人なら1組でき、余った1人はあとから来た人と組になる', () => {

@@ -7,8 +7,8 @@
 //   大きい id → 小さい id : accept     「いいよ」（ここから他の申し込みは断る）
 //   小さい id → 大きい id : go         「決まり」→ 2人とも部屋へ
 // 返事が来なければ少し待って探し直す。tick(now) を外から定期的に呼ぶ（時刻は外から渡すのでテストしやすい）
-export const LOBBY_SEEK_MS = 1000;     // 「探しています」を出す間隔
-export const LOBBY_FORGET_MS = 3000;   // これより長く声が聞こえない人は、もういないとみなす
+export const LOBBY_SEEK_MS = 2500;     // 「探しています」を出す間隔（全員に届くので、短いほど通信が増える）
+export const LOBBY_FORGET_MS = 7000;   // これより長く声が聞こえない人は、もういないとみなす
 export const LOBBY_REPLY_MS = 1500;    // 申し込み・返事を待つ長さ
 
 export class Matchmaker {
@@ -71,7 +71,14 @@ export class Matchmaker {
       this.tryOffer();
       return;
     }
-    if (m.to !== this.id) return;
+    if (m.to !== this.id) {
+      // 他の人どうしの「いいよ」「決まり」も全員に届くので、組になりかけの2人は候補から外す（通信を増やさずに済む）
+      if (m.t === 'accept' || m.t === 'go') {
+        this.candidates.delete(m.from);
+        this.candidates.delete(m.to);
+      }
+      return;
+    }
     if (m.t === 'offer') {
       if (this.state !== 'seek' || m.from > this.id) return;
       this.state = 'awaiting';

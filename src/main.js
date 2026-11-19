@@ -44,6 +44,9 @@ const app = {
 const myIdx = () => (app.net && app.net.session && !app.net.host ? 1 : 0);
 
 const NET_DELAY = 2;
+// 中継（Supabase 経由）のときは通信の節約のため入力を4コマ分まとめて送る。その分、入力の遅らせを増やして巻き戻しを抑える
+const RELAY_SEND_EVERY = 4;
+const NET_DELAY_RELAY = 4;
 const RANDOM_WAIT_MS = 30000;      // ランダム対戦で相手を探す長さ。過ぎたらCPU戦へ
 const RANDOM_ROOM_WAIT_MS = 8000;  // 組になったのに部屋で会えない時は、探し直す
 const NET_TIMEOUT_MS = 8000;
@@ -691,7 +694,8 @@ function netPick(id) {
 function maybeStartNet() {
   const net = app.net;
   if (!net || !net.host || !net.myPick || !net.peerPick || net.session) return;
-  const msg = { t: 'start', p1: net.myPick, p2: net.peerPick, g: net.generation, delay: NET_DELAY };
+  const delay = net.link.transport.kind === 'relay' ? NET_DELAY_RELAY : NET_DELAY;
+  const msg = { t: 'start', p1: net.myPick, p2: net.peerPick, g: net.generation, delay };
   net.startMsg = msg;
   net.link.send(msg);
   startNetMatch(msg);
@@ -701,18 +705,20 @@ function startNetMatch(msg) {
   const net = app.net;
   app.mode = 'online';
   app.picks = [msg.p1, msg.p2];
+  net.delay = msg.delay; // 再戦でも同じ遅らせを使う
   const relayed = net.link.transport.kind === 'relay';
   net.session = new RollbackSession({
     state: createMatch({ p1: msg.p1, p2: msg.p2, gimmicks: true }),
     localIdx: net.host ? 0 : 1,
-    send: (m) => net.link.send(m, m.t === 'i'),
+    // 入力と答え合わせ（h）は落ちてもよいので直結を優先。直結中は中継を使わない
+    send: (m) => net.link.send(m, m.t === 'i' || m.t === 'h'),
     delay: msg.delay,
     generation: msg.g,
-    sendEvery: relayed ? 2 : 1,
+    sendEvery: relayed ? RELAY_SEND_EVERY : 1,
   });
   // 中継から直結に変わったら送信回数を戻す
   net.link.transport.onkind = (kind) => {
-    if (net.session) net.session.sendEvery = kind === 'relay' ? 2 : 1;
+    if (net.session) net.session.sendEvery = kind === 'relay' ? RELAY_SEND_EVERY : 1;
   };
   // 開始の合図が届かなかった場合に備えて、部屋主は少しの間送り直す
   if (net.host) {
@@ -790,7 +796,7 @@ function maybeRematch() {
   // 両者が同じ番号と組み合わせで作り直すので、どちらが先でもよい
   net.generation++;
   clearInterval(net.startTimer);
-  startNetMatch({ p1: app.picks[0], p2: app.picks[1], g: net.generation, delay: NET_DELAY });
+  startNetMatch({ p1: app.picks[0], p2: app.picks[1], g: net.generation, delay: net.delay || NET_DELAY });
 }
 
 function endOnline(text) {
