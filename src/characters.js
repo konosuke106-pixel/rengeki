@@ -204,13 +204,13 @@ const hayateMoves = {
 const kageMoves = {
   ...normals({ sp: 0, r: 1.04, d: 0.98 }),
   spN: {
-    id: 'spN', name: '影返し', rank: 4, total: 44, parry: [3, 24], counter: 'cnt', boxes: [],
+    id: 'spN', name: '影返し', rank: 4, total: 44, parry: [3, 18], counter: 'cnt', boxes: [],
     anim: [[0, 'parry'], [25, 'idle']],
   },
   // 影返しが成功した時だけ出る反撃（コマンドはない）
   cnt: {
     id: 'cnt', name: '影返し・斬', rank: 4, total: 34, inv: [1, 14],
-    boxes: [hitbox(6, 4, [70, 50, 120, 140], { dmg: 120, stun: 40, block: 18, kb: 6, lv: 'm', launch: 17, kd: true, hs: 14, fx: 'h' })],
+    boxes: [hitbox(6, 4, [70, 50, 120, 140], { dmg: 100, stun: 40, block: 18, kb: 6, lv: 'm', launch: 17, kd: true, hs: 14, fx: 'h' })],
     motion: [{ from: 1, to: 7, vx: 12 }],
     anim: [[0, 'castW'], [5, 'heavy'], [18, 'idle']],
   },
@@ -226,10 +226,10 @@ const kageMoves = {
     anim: [[0, 'crouch'], [5, 'slide'], [24, 'crouch']],
   },
   super: {
-    id: 'super', name: '朧月', rank: 5, super: true, total: 70, inv: [1, 30], noPush: true,
+    id: 'super', name: '朧月', rank: 5, super: true, total: 70, inv: [1, 14], noPush: true,
     boxes: [
       ...[13, 16, 19, 22].map((f) => hitbox(f, 2, [0, 20, 220, 170], { dmg: 45, stun: 40, block: 8, kb: 0.5, lv: 'm', hs: 4, fx: 'm', superFix: true, chip: 4 })),
-      hitbox(34, 4, [-70, 30, 170, 170], { dmg: 140, stun: 50, block: 10, kb: -8, lv: 'm', launch: 22, kd: true, hs: 18, fx: 's', superFix: true, chip: 12 }),
+      hitbox(34, 4, [-70, 30, 170, 170], { dmg: 120, stun: 50, block: 10, kb: -8, lv: 'm', launch: 22, kd: true, hs: 18, fx: 's', superFix: true, chip: 12 }),
     ],
     motion: [{ from: 10, to: 22, vx: 22 }, { from: 23, to: 40, vx: 0 }],
     anim: [[0, 'castW'], [10, 'dashF'], [24, 'parry'], [33, 'upper'], [50, 'idle']],
@@ -238,7 +238,7 @@ const kageMoves = {
 
 // コガラシ：氷の罠を置いて動きを封じる
 const kogarashiMoves = {
-  ...normals({ sp: 1, r: 1.05, d: 1.04 }),
+  ...normals({ sp: 1, r: 1.05, d: 0.98 }),
   spN: {
     id: 'spN', name: '氷柱', rank: 4, total: 40, oneProj: true, boxes: [],
     anim: [[0, 'castW'], [11, 'cast']],
@@ -247,7 +247,7 @@ const kogarashiMoves = {
   spD: {
     id: 'spD', name: '霜置き', rank: 4, total: 32, boxes: [],
     anim: [[0, 'crouch'], [8, 'slam'], [22, 'crouch']],
-    spawn: [{ f: 10, x: 170, y: 0, vx: 0, w: 76, h: 28, life: 330, arm: 24, max: 2, kind: 'trap', noClash: true, freeze: true, dmg: 40, stun: 56, block: 12, kb: 0, lv: 'l', hs: 10, fx: 'h' }],
+    spawn: [{ f: 10, x: 170, y: 0, vx: 0, w: 76, h: 28, life: 330, arm: 24, max: 2, kind: 'trap', noClash: true, freeze: true, dmg: 40, stun: 44, block: 12, kb: 0, lv: 'l', hs: 10, fx: 'h' }],
   },
   spF: {
     id: 'spF', name: '氷滑り', rank: 4, total: 42, crouch: true,
@@ -258,7 +258,7 @@ const kogarashiMoves = {
   super: {
     id: 'super', name: '氷牢', rank: 5, super: true, total: 60, inv: [1, 14], boxes: [],
     anim: [[0, 'castW'], [12, 'slam'], [44, 'idle']],
-    spawn: [{ f: 14, atOpp: true, x: 0, y: 0, vx: 0, w: 120, h: 230, life: 14, arm: 4, kind: 'prison', noClash: true, freeze: true, dmg: 230, stun: 80, block: 10, kb: 0, lv: 'm', hs: 16, fx: 's', superFix: true, chip: 12 }],
+    spawn: [{ f: 14, atOpp: true, x: 0, y: 0, vx: 0, w: 120, h: 230, life: 14, arm: 4, kind: 'prison', noClash: true, freeze: true, dmg: 200, stun: 80, block: 10, kb: 0, lv: 'm', hs: 16, fx: 's', superFix: true, chip: 12 }],
   },
 };
 
@@ -291,7 +291,7 @@ const tsuzumiMoves = {
 
 // オニ：遅くて重い。体力が減るほど攻撃が強くなる（rage）
 const oniMoves = {
-  ...normals({ sp: 2, r: 1.15, d: 1.2 }),
+  ...normals({ sp: 2, r: 1.15, d: 1.12 }),
   spN: {
     id: 'spN', name: '金棒落とし', rank: 4, total: 52, armor: [4, 16],
     boxes: [hitbox(18, 5, [100, 0, 150, 170], { dmg: 130, stun: 30, block: 22, kb: 8, lv: 'm', launch: 12, kd: true, hs: 14, fx: 'h', chip: 10 })],
@@ -322,20 +322,20 @@ const oniMoves = {
 
 // クサリ：鎖鎌で遠くの相手を引き寄せる（pull）
 const kusariMoves = {
-  ...normals({ sp: 0, r: 1.08, d: 0.95 }),
+  ...normals({ sp: -1, r: 1.1, d: 1.1 }),
   spN: {
     id: 'spN', name: '鎖投げ', rank: 4, total: 42, chain: true,
-    boxes: [hitbox(12, 5, [230, 90, 210, 36], { dmg: 50, stun: 40, block: 12, kb: 0, lv: 'm', pull: true, hs: 9, fx: 'm', chip: 3 })],
+    boxes: [hitbox(12, 5, [230, 90, 210, 36], { dmg: 65, stun: 40, block: 12, kb: 0, lv: 'm', pull: true, hs: 9, fx: 'm', chip: 3 })],
     anim: [[0, 'castW'], [11, 'jab'], [30, 'idle']],
   },
   spD: {
     id: 'spD', name: '回転鎌', rank: 4, total: 38, inv: [1, 6], chain: true,
-    boxes: [hitbox(6, 12, [0, 110, 220, 120], { dmg: 75, stun: 36, block: 14, kb: 3, lv: 'm', launch: 16, hs: 9, fx: 'm' })],
+    boxes: [hitbox(6, 12, [0, 110, 220, 120], { dmg: 88, stun: 36, block: 14, kb: 3, lv: 'm', launch: 16, hs: 9, fx: 'm' })],
     anim: [[0, 'crouch'], [5, 'win'], [20, 'idle']],
   },
   spF: {
     id: 'spF', name: '鎖払い', rank: 4, total: 44, crouch: true, chain: true,
-    boxes: [hitbox(12, 5, [200, 4, 220, 34], { dmg: 55, stun: 36, block: 12, kb: 0, lv: 'l', pull: true, hs: 9, fx: 'm', chip: 3 })],
+    boxes: [hitbox(12, 5, [200, 4, 220, 34], { dmg: 68, stun: 36, block: 12, kb: 0, lv: 'l', pull: true, hs: 9, fx: 'm', chip: 3 })],
     anim: [[0, 'crouch'], [11, 'sweep'], [28, 'crouch']],
   },
   super: {
@@ -351,22 +351,22 @@ const kusariMoves = {
 
 // ユミ：弓で遠くから。斜め上に撃つ矢と、後ろへ跳びながら撃つ矢
 const yumiMoves = {
-  ...normals({ sp: 0, r: 0.95, d: 0.85 }),
+  ...normals({ sp: 0, r: 1, d: 0.95 }),
   spN: {
     id: 'spN', name: '一の矢', rank: 4, total: 34, oneProj: true, boxes: [],
     anim: [[0, 'castW'], [9, 'cast']],
-    spawn: [{ f: 10, x: 60, y: 120, vx: 20, w: 60, h: 14, life: 70, kind: 'arrow', dmg: 55, stun: 22, block: 12, kb: 5, lv: 'm', hs: 7, fx: 'm', chip: 4 }],
+    spawn: [{ f: 10, x: 60, y: 120, vx: 20, w: 60, h: 14, life: 70, kind: 'arrow', dmg: 65, stun: 22, block: 12, kb: 5, lv: 'm', hs: 7, fx: 'm', chip: 4 }],
   },
   spD: {
     id: 'spD', name: '天の矢', rank: 4, total: 32, oneProj: true, boxes: [],
     anim: [[0, 'castW'], [7, 'upper']],
-    spawn: [{ f: 8, x: 40, y: 150, vx: 9, vy: 11, w: 40, h: 40, life: 45, kind: 'arrow', dmg: 60, stun: 30, block: 12, kb: 3, lv: 'm', launch: 14, hs: 8, fx: 'm', chip: 4 }],
+    spawn: [{ f: 8, x: 40, y: 150, vx: 9, vy: 11, w: 40, h: 40, life: 45, kind: 'arrow', dmg: 70, stun: 30, block: 12, kb: 3, lv: 'm', launch: 14, hs: 8, fx: 'm', chip: 4 }],
   },
   spF: {
     id: 'spF', name: '退き撃ち', rank: 4, total: 40, boxes: [],
     motion: [{ from: 2, to: 10, vx: -12, vy: 6 }],
     anim: [[0, 'dashB'], [10, 'castW'], [13, 'cast']],
-    spawn: [{ f: 14, x: 50, y: 110, vx: 20, w: 60, h: 14, life: 70, kind: 'arrow', dmg: 50, stun: 22, block: 12, kb: 5, lv: 'm', hs: 7, fx: 'm', chip: 4 }],
+    spawn: [{ f: 14, x: 50, y: 110, vx: 20, w: 60, h: 14, life: 70, kind: 'arrow', dmg: 62, stun: 22, block: 12, kb: 5, lv: 'm', hs: 7, fx: 'm', chip: 4 }],
   },
   super: {
     id: 'super', name: '破魔の大矢', rank: 5, super: true, total: 56, inv: [1, 14], boxes: [],
@@ -382,7 +382,7 @@ const yumiMoves = {
 
 // ハミ：毒で体力をじわじわ削る（poison）。毒の相手には強い技もある（poisonBonus）
 const hamiMoves = {
-  ...normals({ sp: 0, r: 1, d: 0.9 }),
+  ...normals({ sp: 0, r: 1, d: 0.97 }),
   spN: {
     id: 'spN', name: '毒霧', rank: 4, total: 40, oneProj: true, boxes: [],
     anim: [[0, 'castW'], [11, 'cast']],
@@ -411,7 +411,7 @@ const hamiMoves = {
 
 // マボロシ：分身を置き、本体と分身の両方から幻の刃を飛ばす（makeClone / echo / swapClone）
 const maboroshiMoves = {
-  ...normals({ sp: 0, r: 1, d: 0.92 }),
+  ...normals({ sp: -1, r: 1.02, d: 1.02 }),
   spN: {
     id: 'spN', name: '幻刃', hint: '分身からも出る', rank: 4, total: 38, oneProj: true, boxes: [],
     anim: [[0, 'castW'], [10, 'cast']],
@@ -440,11 +440,11 @@ const maboroshiMoves = {
 
 // ツバサ：空中ダッシュと滑空で空を舞う（airDash / glide）
 const tsubasaMoves = {
-  ...normals({ sp: -1, r: 0.95, d: 0.88 }),
+  ...normals({ sp: -1, r: 0.98, d: 0.98 }),
   spN: {
     id: 'spN', name: '風切り羽', rank: 4, total: 32, oneProj: true, boxes: [],
     anim: [[0, 'castW'], [8, 'cast']],
-    spawn: [{ f: 9, x: 50, y: 130, vx: 14, w: 50, h: 22, life: 60, kind: 'feather', dmg: 40, stun: 20, block: 10, kb: 4, lv: 'm', hs: 6, fx: 'l', chip: 3 }],
+    spawn: [{ f: 9, x: 50, y: 130, vx: 14, w: 50, h: 22, life: 60, kind: 'feather', dmg: 50, stun: 20, block: 10, kb: 4, lv: 'm', hs: 6, fx: 'l', chip: 3 }],
   },
   spD: {
     id: 'spD', name: '舞い上がり', rank: 4, total: 34, inv: [1, 6],
@@ -460,7 +460,7 @@ const tsubasaMoves = {
   },
   spF: {
     id: 'spF', name: '突風脚', rank: 4, total: 40,
-    boxes: [hitbox(8, 10, [70, 40, 110, 90], { dmg: 75, stun: 30, block: 16, kb: 8, lv: 'm', launch: 10, kd: true, hs: 10, fx: 'h', chip: 5 })],
+    boxes: [hitbox(8, 10, [70, 40, 110, 90], { dmg: 85, stun: 30, block: 16, kb: 8, lv: 'm', launch: 10, kd: true, hs: 10, fx: 'h', chip: 5 })],
     motion: [{ from: 4, to: 16, vx: 14 }],
     anim: [[0, 'dashF'], [7, 'kickM'], [24, 'idle']],
   },
@@ -475,16 +475,16 @@ const tsubasaMoves = {
 
 // カブト：盾で守る。ガード中に必殺で反撃（guardCancel → gc）、飛び道具を弾き返す（reflect）
 const kabutoMoves = {
-  ...normals({ sp: 1, r: 1.05, d: 1.05 }),
+  ...normals({ sp: 0, r: 1.08, d: 1.12 }),
   spN: {
     id: 'spN', name: '盾突き', rank: 4, total: 46, armor: [3, 14],
-    boxes: [hitbox(14, 5, [84, 50, 100, 140], { dmg: 95, stun: 30, block: 20, kb: 10, lv: 'm', launch: 10, kd: true, wall: true, hs: 13, fx: 'h', chip: 6 })],
+    boxes: [hitbox(14, 5, [84, 50, 100, 140], { dmg: 105, stun: 30, block: 20, kb: 10, lv: 'm', launch: 10, kd: true, wall: true, hs: 13, fx: 'h', chip: 6 })],
     motion: [{ from: 10, to: 16, vx: 8 }],
     anim: [[0, 'heavyW'], [13, 'heavy'], [32, 'idle']],
   },
   spD: {
     id: 'spD', name: '盾弾き', hint: '飛び道具を打ち返す', rank: 4, total: 34, reflect: [3, 20],
-    boxes: [hitbox(6, 8, [60, 40, 80, 150], { dmg: 40, stun: 22, block: 12, kb: 6, lv: 'm', hs: 7, fx: 'm' })],
+    boxes: [hitbox(6, 8, [60, 40, 80, 150], { dmg: 55, stun: 22, block: 12, kb: 6, lv: 'm', hs: 7, fx: 'm' })],
     anim: [[0, 'parry'], [22, 'idle']],
   },
   spF: {
@@ -496,7 +496,7 @@ const kabutoMoves = {
   // ガード中に必殺ボタンで出る反撃（ゲージ50を使う。コマンドはない）
   gc: {
     id: 'gc', name: '返し打ち', rank: 4, total: 30, inv: [1, 12],
-    boxes: [hitbox(5, 4, [70, 40, 110, 150], { dmg: 50, stun: 30, block: 12, kb: 12, lv: 'm', launch: 12, kd: true, hs: 12, fx: 'h' })],
+    boxes: [hitbox(5, 4, [70, 40, 110, 150], { dmg: 70, stun: 30, block: 12, kb: 12, lv: 'm', launch: 12, kd: true, hs: 12, fx: 'h' })],
     anim: [[0, 'parry'], [4, 'heavy'], [18, 'idle']],
   },
   super: {
@@ -591,7 +591,7 @@ export const CHARS = {
   },
   kage: {
     id: 'kage', name: 'カゲ', kana: '影', title: '影の剣客', style: '構えて受け流し反撃。読み合いが得意',
-    hp: 960, w: 58, h: 184, walk: 5.6, back: 4.6, jump: 18.5, jumpVx: 6.4, dash: 16, dashF: 14,
+    hp: 920, w: 58, h: 184, walk: 5.6, back: 4.6, jump: 18.5, jumpVx: 6.4, dash: 16, dashF: 14,
     build: 0.95, stats: { 攻撃: 4, 速度: 3, 体力: 2 }, stage: 'moonroof',
     cpu: { antiAir: 'spN', zone: 'spD', parry: true }, card: '#6b5a9a',
     palettes: [
@@ -602,7 +602,7 @@ export const CHARS = {
   },
   kogarashi: {
     id: 'kogarashi', name: 'コガラシ', kana: '氷', title: '氷の罠師', style: '足は遅いが頑丈。氷の罠で動きを封じる',
-    hp: 1080, w: 66, h: 190, walk: 4.8, back: 3.8, jump: 17.8, jumpVx: 5.6, dash: 13, dashF: 16,
+    hp: 1020, w: 66, h: 190, walk: 4.8, back: 3.8, jump: 17.8, jumpVx: 5.6, dash: 13, dashF: 16,
     build: 1.15, stats: { 攻撃: 3, 速度: 2, 体力: 4 }, stage: 'snow',
     cpu: { antiAir: 'cH', zone: 'spD' },
     palettes: [
@@ -624,7 +624,7 @@ export const CHARS = {
   },
   oni: {
     id: 'oni', name: 'オニ', kana: '鬼', title: '怒れる鬼', style: '遅いが重い。体力が減るほど攻撃が強くなる',
-    hp: 1200, w: 80, h: 200, walk: 4.2, back: 3.2, jump: 17, jumpVx: 5, dash: 12, dashF: 17,
+    hp: 1120, w: 80, h: 200, walk: 4.2, back: 3.2, jump: 17, jumpVx: 5, dash: 12, dashF: 17,
     build: 1.42, rage: true, stats: { 攻撃: 4, 速度: 1, 体力: 5 }, stage: 'onirock',
     cpu: { antiAir: 'spD', poke: 'spF' },
     palettes: [
@@ -646,7 +646,7 @@ export const CHARS = {
   },
   yumi: {
     id: 'yumi', name: 'ユミ', kana: '弓', title: '弓の射手', style: '遠くから矢で攻める。近づかれると弱い',
-    hp: 900, w: 54, h: 180, walk: 5.6, back: 5, jump: 18.5, jumpVx: 6.4, dash: 16, dashF: 13,
+    hp: 940, w: 54, h: 180, walk: 5.6, back: 5, jump: 18.5, jumpVx: 6.4, dash: 16, dashF: 13,
     build: 0.88, stats: { 攻撃: 3, 速度: 3, 体力: 2 }, stage: 'autumn',
     cpu: { antiAir: 'spD', zone: 'spN' },
     palettes: [

@@ -34,6 +34,9 @@ function newFighter(idx, char, palette) {
   };
 }
 
+// オニの怒り：体力が減るほど攻撃が上がる上限（0.35 なら最大1.35倍）
+const RAGE_MAX = 0.35;
+
 export function createMatch({ p1 = 'kagari', p2 = 'goutetsu', training = false, stage = null, gimmicks = false } = {}) {
   const s = {
     t: 0, phase: 'intro', phaseF: 0, round: 1, time: ROUND_FRAMES, training,
@@ -747,9 +750,9 @@ function dealDamage(s, a, d, hb, at, counter, isProj) {
   const scale = hb.superFix
     ? Math.max(0.5, 1 - 0.07 * Math.max(0, d.comboHits - 2))
     : Math.max(0.3, 1 - 0.09 * Math.max(0, d.comboHits - 2));
-  // 怒り：体力が減るほど攻撃が重くなる（最大1.5倍）。毒の相手に強い技もある
+  // 怒り：体力が減るほど攻撃が重くなる（最大 1 + RAGE_MAX 倍）。毒の相手に強い技もある
   const ach = CHARS[a.char];
-  const rage = ach.rage ? 1 + 0.5 * (1 - Math.max(0, a.hp) / ach.hp) : 1;
+  const rage = ach.rage ? 1 + RAGE_MAX * (1 - Math.max(0, a.hp) / ach.hp) : 1;
   const venom = hb.poisonBonus && d.poison > 0 ? hb.poisonBonus : 1;
   let dmg = Math.max(1, Math.round(hb.dmg * scale * (counter ? 1.15 : 1) * rage * venom));
   if (s.training) dmg = Math.min(dmg, Math.max(0, d.hp - 1));

@@ -71,7 +71,8 @@ test('オニ：体力が減るほど同じ技のダメージが増える', () =>
   const full = dmgAt(1);
   const low = dmgAt(0.2);
   assert.ok(full > 0);
-  assert.ok(low > full * 1.3 && low <= full * 1.5 + 1, `${full} → ${low}`);
+  // 体力2割なら 1 + 0.35 × 0.8 = 1.28倍（上限は1.35倍）
+  assert.ok(low > full * 1.2 && low <= full * 1.35 + 1, `${full} → ${low}`);
 });
 
 test('オニ以外は体力が減っても攻撃力は変わらない', () => {
