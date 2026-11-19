@@ -1790,7 +1790,8 @@ export class Renderer {
     ctx.lineWidth = 16;
     ctx.strokeStyle = INK;
     // 日本語以外は、漢字の技名を大きく出し、その下に訳を小さく添える
-    const sub = getLang() === 'ja' ? '' : T(c.name);
+    // （中国語は漢字の技名がそのまま読めるので添えない）
+    const sub = getLang() === 'ja' || getLang() === 'zh' ? '' : T(c.name);
     const nameY = sub ? bandY + bandH / 2 - 14 : bandY + bandH / 2;
     ctx.strokeText(c.name, VIEW_W / 2, nameY);
     ctx.fillStyle = PAPER;

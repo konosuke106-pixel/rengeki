@@ -18,6 +18,9 @@ import { CHARS } from '../src/characters.js';
 import { POSES } from '../src/poses.js';
 import { Renderer, paintFighter } from '../src/render.js';
 import { audioTap, setMuted, isMuted } from '../src/audio.js';
+import { setLang } from '../src/i18n.js';
+// 宣伝動画は日本語の画面で録る（録画用の Edge の言語設定に左右されないように）
+setLang('ja');
 
 const params = new URLSearchParams(location.search);
 const STILL = params.has('still') ? Number(params.get('still')) : null;

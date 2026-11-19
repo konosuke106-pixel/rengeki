@@ -183,6 +183,8 @@ body.force-touch #touch { display: block; }
 .tbtn.word { font-size: clamp(11px, 3.6vh, 15px); }
 .tbtn.jp { background: rgba(92,158,226,.8); grid-column: 2; }
 .tbtn.gd { background: rgba(72,184,140,.8); }
+/* 英語・スペイン語は字が長いので、超・ガードのボタンだけ字を小さくする */
+html.lang-en .tbtn.su, html.lang-es .tbtn.su, html.lang-es .tbtn.gd { font-size: clamp(9px, 3vh, 12px); letter-spacing: -.02em; }
 .guide-hint { outline: 4px solid var(--gold); outline-offset: 2px; animation: guide-pulse .7s infinite alternate; }
 #stick-base.guide-hint { border-radius: 50%; }
 @keyframes guide-pulse { to { outline-color: rgba(246,196,69,.25); } }
