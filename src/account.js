@@ -148,3 +148,18 @@ export async function reportResult(room, gen, oppId, result) {
   }
   return out;
 }
+
+// レートが付く試合か。ランダム対戦で、自分も相手もログインして名前がある時だけ（部屋コードの対戦は八百長を防ぐため付けない）
+export function rankedMatchInfo({ random, myUid, peerUid }) {
+  if (!random || !myUid || !peerUid || myUid === peerUid) return null;
+  return { oppId: peerUid };
+}
+
+// 試合の結果を、自分から見た win / loss / draw にする
+export function matchResultFor(s, myIdx) {
+  if (s.matchWinner < 0) return 'draw';
+  return s.matchWinner === myIdx ? 'win' : 'loss';
+}
+
+// 自分のログインの id（レートの付く試合に出られる時だけ）
+export const rankedUid = () => (rankedReady() ? acctState.user.id : null);

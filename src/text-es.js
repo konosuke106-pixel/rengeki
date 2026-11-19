@@ -389,4 +389,7 @@ export const TEXT_ES = {
   "保存": "Guardar",
   "ログアウト": "Cerrar sesión",
   "プライバシー": "Privacidad",
+  "レートを集計中…": "Actualizando puntuación…",
+  "レート {delta}（{rating}）": "Puntuación {delta} ({rating})",
+  "レートは少しあとで反映されます": "Tu puntuación se actualizará en breve",
 };

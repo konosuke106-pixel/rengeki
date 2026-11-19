@@ -273,3 +273,5 @@ kbd { font-family: inherit; font-weight: 700; color: var(--gold); }
 .account-msg[hidden] { display: none; }
 .account-privacy { margin: 1.4vh 0 0; font-size: .9em; }
 .account-privacy a { color: inherit; opacity: .8; }
+.result-rating { margin: 1vh 0 0; font-weight: 900; font-size: clamp(14px, 3.6vh, 20px); color: #f6c445; }
+.result-rating[hidden] { display: none; }

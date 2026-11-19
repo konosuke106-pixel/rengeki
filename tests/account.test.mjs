@@ -38,3 +38,20 @@ test('ずっと失敗しても例外を出さず null を返す（試合は止�
 test('ログインの記録がなければ、通信用の部品を読み込まない', () => {
   assert.equal(hasStoredLogin(), false);
 });
+
+import { rankedMatchInfo, matchResultFor } from '../src/account.js';
+
+test('レートが付くのは、ランダム対戦で2人ともログイン（名前あり）の時だけ', () => {
+  assert.deepEqual(rankedMatchInfo({ random: true, myUid: 'a', peerUid: 'b' }), { oppId: 'b' });
+  assert.equal(rankedMatchInfo({ random: false, myUid: 'a', peerUid: 'b' }), null, '部屋コードの対戦');
+  assert.equal(rankedMatchInfo({ random: true, myUid: null, peerUid: 'b' }), null, '自分がゲスト');
+  assert.equal(rankedMatchInfo({ random: true, myUid: 'a', peerUid: null }), null, '相手がゲスト');
+  assert.equal(rankedMatchInfo({ random: true, myUid: 'a', peerUid: 'a' }), null, '同じ人');
+});
+
+test('試合の結果を自分から見た勝ち・負け・引き分けにする', () => {
+  assert.equal(matchResultFor({ matchWinner: 0 }, 0), 'win');
+  assert.equal(matchResultFor({ matchWinner: 0 }, 1), 'loss');
+  assert.equal(matchResultFor({ matchWinner: 1 }, 1), 'win');
+  assert.equal(matchResultFor({ matchWinner: -1 }, 0), 'draw');
+});

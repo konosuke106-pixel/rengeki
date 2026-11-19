@@ -389,4 +389,7 @@ export const TEXT_EN = {
   "保存": "Save",
   "ログアウト": "Sign out",
   "プライバシー": "Privacy",
+  "レートを集計中…": "Updating rating…",
+  "レート {delta}（{rating}）": "Rating {delta} ({rating})",
+  "レートは少しあとで反映されます": "Your rating will update shortly",
 };

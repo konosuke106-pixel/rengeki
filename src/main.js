@@ -11,7 +11,7 @@ import { unlockAudio, playSound, isMuted, setMuted } from './audio.js';
 import { RollbackSession } from './rollback.js';
 import { OnlineLink, makeRoomCode, normalizeRoomCode, onlineAvailable, createTransport, NET_VERSION } from './net.js';
 import { Matchmaker } from './lobby.js';
-import { account, onAccount, initAccount, signInGoogle, signOut, deleteAccount, saveName, validName } from './account.js';
+import { account, onAccount, initAccount, signInGoogle, signOut, deleteAccount, saveName, validName, rankedMatchInfo, matchResultFor, rankedUid, reportStart, reportResult } from './account.js';
 import { T, TX, LANGS, getLang, setLang, onLangChange, applyDom } from './i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -410,7 +410,7 @@ function netFrame(now) {
     showResult(sess.state);
   }
   if (sess.desync && !net.ended) endOnline(T('通信の食い違いが起きました。もう一度部屋を作ってね'));
-  else if (sess.silentFor(performance.now()) > NET_TIMEOUT_MS && !net.ended) endOnline(T('相手との通信が切れました'));
+  else if (sess.silentFor(performance.now()) > NET_TIMEOUT_MS && !net.ended) endOnline(T('相手との通信が切れました'), true);
 }
 
 function netNote() {
@@ -475,8 +475,33 @@ function updateControls(s) {
   }
 }
 
+// 結果をサーバーに届け、レートの変化を結果画面に出す。相手の報告がまだなら少し待って聞き直す
+async function reportRanked(result) {
+  const net = app.net;
+  const g = net.generation;
+  const el = $('#result-rating');
+  el.hidden = false;
+  el.textContent = T('レートを集計中…');
+  for (let i = 0; i < 4; i++) {
+    const out = await reportResult(net.room, g, net.ranked.oppId, result);
+    if (app.net !== net || net.generation !== g) return;
+    if (out && typeof out.delta === 'number') {
+      el.textContent = T('レート {delta}（{rating}）', { delta: (out.delta >= 0 ? '+' : '') + out.delta, rating: out.rating });
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+  el.textContent = T('レートは少しあとで反映されます');
+}
+
 function showResult(s) {
   app.resultShown = true;
+  $('#result-rating').hidden = true;
+  const rnet = app.mode === 'online' ? app.net : null;
+  if (rnet && rnet.ranked && rnet.reportedGen !== rnet.generation) {
+    rnet.reportedGen = rnet.generation;
+    reportRanked(matchResultFor(s, myIdx()));
+  }
   const win = s.matchWinner;
   const title = $('#result-title');
   if (win < 0) {
@@ -644,7 +669,11 @@ async function enterRoom(code, host, random = false) {
     onMessage: (m) => netMessage(m),
     onFail: (text) => netFail(text),
   });
-  app.net = { link, host, session: null, myPick: null, peerPick: null, generation: 0, wantRematch: false, peerRematch: false, ended: false };
+  app.net = {
+    link, host, session: null, myPick: null, peerPick: null, generation: 0, wantRematch: false, peerRematch: false, ended: false,
+    // レート：ランダム対戦の時だけ、選んだキャラと一緒にログインの id を送り合う
+    random, room: code, peerUid: null, ranked: null, reportedGen: -1,
+  };
   try {
     await link.connect();
     if (app.net && app.net.link === link) {
@@ -688,7 +717,7 @@ function netPick(id) {
   app.picks[0] = id;
   app.picking = 1;
   updateSelectHeading();
-  net.link.send({ t: 'pick', id, g: net.generation });
+  net.link.send({ t: 'pick', id, g: net.generation, uid: net.random ? rankedUid() : null });
   maybeStartNet();
 }
 
@@ -732,6 +761,9 @@ function startNetMatch(msg) {
   }
   app.match = net.session.state;
   net.wantRematch = false;
+  // レートの付く試合なら、2人それぞれが「この試合を始めた」とサーバーに届ける
+  net.ranked = rankedMatchInfo({ random: net.random, myUid: rankedUid(), peerUid: net.peerUid });
+  if (net.ranked) reportStart(net.room, msg.g, net.ranked.oppId);
   net.peerRematch = false;
   renderer.reset();
   renderer.setStage(CHARS[msg.p2].stage);
@@ -762,6 +794,7 @@ function netMessage(m) {
     case 'pick':
       if (m.g === net.generation) {
         net.peerPick = m.id;
+        if (net.random && typeof m.uid === 'string') net.peerUid = m.uid;
         maybeStartNet();
       }
       break;
@@ -775,7 +808,7 @@ function netMessage(m) {
       }
       break;
     case 'bye':
-      if (!net.ended) endOnline(T('相手が部屋を出ました'));
+      if (!net.ended) endOnline(T('相手が部屋を出ました'), true);
       break;
     default:
       break;
@@ -800,8 +833,13 @@ function maybeRematch() {
   startNetMatch({ p1: app.picks[0], p2: app.picks[1], g: net.generation, delay: net.delay || NET_DELAY });
 }
 
-function endOnline(text) {
+function endOnline(text, peerLeft = false) {
   const net = app.net;
+  // 試合の途中で相手がいなくなったら「相手が切れた」と届ける（逃げた側の負けになる）
+  if (peerLeft && net.ranked && net.session && net.reportedGen !== net.generation) {
+    net.reportedGen = net.generation;
+    reportResult(net.room, net.generation, net.ranked.oppId, 'dc');
+  }
   net.ended = true;
   net.session = null;
   clearInterval(net.startTimer);
