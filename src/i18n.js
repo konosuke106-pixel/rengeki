@@ -68,6 +68,9 @@ export function T(ja, vars) {
   return out;
 }
 
+// 訳す文の目印だけを付ける（訳は表示する時に T で引く）。抜け検査のテストがこの印を探す
+export const TX = (ja) => ja;
+
 // 今の言語の字体の名前（canvas の font の先頭に足す用）。日本語・英語・スペイン語は空
 export function langFontFamily() {
   const f = LANG_FONTS[curLang];

@@ -5,11 +5,21 @@ import { STAGE_INFO } from './stages.js';
 import { moveOf, activeBoxes, hurtboxOf, moveInvincible } from './sim.js';
 import { POSES, clonePose, blendPose, targetPose, EVADE_SPIN } from './poses.js';
 import { playSound } from './audio.js';
+import { T, getLang, langFontFamily, onLangChange } from './i18n.js';
 
 const INK = '#15101c';
 const PAPER = '#f5ecd6';
-const DISPLAY = '"Dela Gothic One", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif';
-const UI_FONT = '"Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif';
+const DISPLAY_BASE = '"Dela Gothic One", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif';
+const UI_FONT_BASE = '"Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif';
+// 中国語・韓国語のときはその言語の字体を先に使う
+// （中国語は漢字の形が日本語と違うので、見出しの字体も中国語の字体を先にする）
+const displayFont = () => (getLang() === 'zh' ? langFontFamily() + DISPLAY_BASE : `"Dela Gothic One", ${langFontFamily()}${DISPLAY_BASE.slice(DISPLAY_BASE.indexOf(',') + 2)}`);
+let DISPLAY = displayFont();
+let UI_FONT = langFontFamily() + UI_FONT_BASE;
+onLangChange(() => {
+  DISPLAY = displayFont();
+  UI_FONT = langFontFamily() + UI_FONT_BASE;
+});
 
 const SKY_PAD = (MAX_VIEW_W - VIEW_W) / 2;
 const SFX_TEXT = { l: ['パシッ', 'ビシッ'], m: ['バキッ', 'ドカッ'], h: ['ドゴォ', 'ズガッ'], s: ['ズドン', 'ゴォッ'] };
@@ -575,7 +585,7 @@ export class Renderer {
         case 'hit':
           this.hitFx(e, sy);
           if (e.hits >= 2) this.combos[e.by] = { hits: e.hits, dmg: e.combo, t: 110, pop: 1 };
-          if (e.counter) this.pushText('カウンター', e.x, sy - 60, '#f6c445', 34, 0);
+          if (e.counter) this.pushText(T('カウンター'), e.x, sy - 60, '#f6c445', 34, 0);
           break;
         case 'block':
           this.spark(e.x, sy, 8, '#bfe3ff', 7);
@@ -603,12 +613,12 @@ export class Renderer {
         case 'tech':
           playSound('tech');
           this.spark(e.x, sy, 14, '#ffffff', 9);
-          this.pushText('投げ抜け', e.x, sy - 40, '#ffffff', 34, 0);
+          this.pushText(T('投げ抜け'), e.x, sy - 40, '#ffffff', 34, 0);
           break;
         case 'armor':
           playSound('armor');
           this.spark(e.x, sy, 14, '#ffd983', 10);
-          this.pushText('耐えた', e.x, sy - 40, '#ffd983', 34, -0.05);
+          this.pushText(T('耐えた'), e.x, sy - 40, '#ffd983', 34, -0.05);
           break;
         case 'evade':
           playSound('dash');
@@ -620,17 +630,17 @@ export class Renderer {
           this.flash = Math.max(this.flash, 0.3);
           this.spark(e.x, sy, 22, '#ff8a2a', 12);
           this.rings.push({ x: e.x, y: sy, r: 10, max: 120, life: 1, color: '#ff8a2a' });
-          this.pushText('ガード崩し', e.x, sy - 60, '#ff8a2a', 44, -0.06);
+          this.pushText(T('ガード崩し'), e.x, sy - 60, '#ff8a2a', 44, -0.06);
           break;
         case 'justGuard':
           playSound('tech');
           this.flash = Math.max(this.flash, 0.3);
           this.spark(e.x, sy, 18, '#7fe8ff', 11);
           this.rings.push({ x: e.x, y: sy, r: 10, max: 110, life: 1, color: '#7fe8ff' });
-          this.pushText('ジャスト！', e.x, sy - 60, '#7fe8ff', 44, 0);
+          this.pushText(T('ジャスト！'), e.x, sy - 60, '#7fe8ff', 44, 0);
           break;
         case 'stagger':
-          this.pushText('よろけ', e.x, sy - 90, '#ffe36b', 30, 0.1);
+          this.pushText(T('よろけ'), e.x, sy - 90, '#ffe36b', 30, 0.1);
           for (let k = 0; k < 5; k++) this.spark(e.x + (k - 2) * 16, sy - 60, 2, '#ffe36b', 3);
           break;
         case 'glide':
@@ -639,7 +649,7 @@ export class Renderer {
           break;
         case 'gust':
           playSound('whoosh', { rank: 3 });
-          this.pushText('突風', this.camX, 110, '#ffffff', 44, 0);
+          this.pushText(T('突風'), this.camX, 110, '#ffffff', 44, 0);
           break;
         case 'drum':
           playSound('bell');
@@ -663,7 +673,7 @@ export class Renderer {
         case 'clone':
           playSound('proj');
           this.spark(e.x, GROUND_Y - 100, 14, '#d9b3ff', 7);
-          this.pushText('分身', e.x, GROUND_Y - 230, '#d9b3ff', 30, 0);
+          this.pushText(T('分身'), e.x, GROUND_Y - 230, '#d9b3ff', 30, 0);
           break;
         case 'airdash':
           playSound('dash');
@@ -673,12 +683,12 @@ export class Renderer {
           playSound('armor');
           this.flash = Math.max(this.flash, 0.2);
           this.spark(e.x, sy, 16, '#ffe36b', 10);
-          this.pushText('返し', e.x, sy - 60, '#ffe36b', 40, 0);
+          this.pushText(T('返し'), e.x, sy - 60, '#ffe36b', 40, 0);
           break;
         case 'reflect':
           playSound('tech');
           this.spark(e.x, sy, 16, '#ffffff', 10);
-          this.pushText('弾いた', e.x, sy - 50, '#ffffff', 34, 0);
+          this.pushText(T('弾いた'), e.x, sy - 50, '#ffffff', 34, 0);
           break;
         case 'bomb':
           playSound('s');
@@ -692,17 +702,17 @@ export class Renderer {
           playSound('armor');
           this.spark(e.x, sy, 12, '#ffffff', 8);
           // 溜め強の最大はガード崩し、ツヅミの衝撃波の最大はガード貫通
-          this.pushText(s.ps[e.by].move === 'sH' ? '最大：ガード崩し' : '最大：ガード不能', e.x, sy - 70, '#ffe36b', 30, 0);
+          this.pushText(s.ps[e.by].move === 'sH' ? T('最大：ガード崩し') : T('最大：ガード不能'), e.x, sy - 70, '#ffe36b', 30, 0);
           break;
         case 'poison':
-          this.pushText('毒', e.x + (Math.random() - 0.5) * 30, sy - 20, '#8fdc3c', 20, 0);
+          this.pushText(T('毒'), e.x + (Math.random() - 0.5) * 30, sy - 20, '#8fdc3c', 20, 0);
           break;
         case 'parry':
           playSound('armor');
           this.flash = Math.max(this.flash, 0.25);
           this.spark(e.x, sy, 18, '#d9b3ff', 11);
           this.rings.push({ x: e.x, y: sy, r: 10, max: 90, life: 1, color: '#d9b3ff' });
-          this.pushText('受け流し', e.x, sy - 50, '#d9b3ff', 40, 0);
+          this.pushText(T('受け流し'), e.x, sy - 50, '#d9b3ff', 40, 0);
           break;
         case 'warp':
           playSound('dash');
@@ -729,25 +739,25 @@ export class Renderer {
         case 'recover': this.spark(e.x, GROUND_Y - e.y - 80, 8, '#ffffff', 5); break;
         case 'round':
           playSound('bell');
-          this.banner = { text: `第${'一二三四五'[e.n - 1] || e.n}戦`, sub: `ROUND ${e.n}`, t: 72, big: false };
+          this.banner = { text: getLang() === 'ja' ? `第${'一二三四五'[e.n - 1] || e.n}戦` : T('第{n}戦', { n: e.n }), sub: `ROUND ${e.n}`, t: 72, big: false };
           break;
         case 'fight':
           playSound('fight');
-          this.banner = { text: '開戦！', sub: 'FIGHT', t: 40, big: true };
+          this.banner = { text: T('開戦！'), sub: 'FIGHT', t: 40, big: true };
           break;
         case 'ko':
           playSound('ko');
           this.flash = 1;
           this.shake = 22;
-          this.banner = { text: '決着', sub: 'K.O.', t: 90, big: true };
+          this.banner = { text: T('決着'), sub: 'K.O.', t: 90, big: true };
           break;
         case 'timeup':
           playSound('bell');
-          this.banner = { text: '時間切れ', sub: 'TIME UP', t: 90, big: true };
+          this.banner = { text: T('時間切れ'), sub: 'TIME UP', t: 90, big: true };
           break;
         case 'roundWin':
           playSound('bell');
-          this.banner = { text: `${CHARS[s.ps[e.winner].char].name} 勝利`, sub: '', t: 85, big: false };
+          this.banner = { text: T('{name} 勝利', { name: T(CHARS[s.ps[e.winner].char].name) }), sub: '', t: 85, big: false };
           break;
         default: break;
       }
@@ -1779,9 +1789,19 @@ export class Renderer {
     ctx.font = `82px ${DISPLAY}`;
     ctx.lineWidth = 16;
     ctx.strokeStyle = INK;
-    ctx.strokeText(c.name, VIEW_W / 2, bandY + bandH / 2);
+    // 日本語以外は、漢字の技名を大きく出し、その下に訳を小さく添える
+    const sub = getLang() === 'ja' ? '' : T(c.name);
+    const nameY = sub ? bandY + bandH / 2 - 14 : bandY + bandH / 2;
+    ctx.strokeText(c.name, VIEW_W / 2, nameY);
     ctx.fillStyle = PAPER;
-    ctx.fillText(c.name, VIEW_W / 2, bandY + bandH / 2);
+    ctx.fillText(c.name, VIEW_W / 2, nameY);
+    if (sub) {
+      ctx.font = `30px ${DISPLAY}`;
+      ctx.lineWidth = 8;
+      ctx.strokeText(sub, VIEW_W / 2, bandY + bandH - 26);
+      ctx.fillStyle = '#ffd983';
+      ctx.fillText(sub, VIEW_W / 2, bandY + bandH - 26);
+    }
     ctx.restore();
   }
 
@@ -1834,7 +1854,7 @@ export class Renderer {
       ctx.lineWidth = 7;
       ctx.strokeStyle = INK;
       const nameX = left ? x0 + 6 : x0 + barW - 6;
-      const label = ch.name;
+      const label = T(ch.name);
       ctx.strokeText(label, nameX, top + barH + 25);
       ctx.fillStyle = PAPER;
       ctx.fillText(label, nameX, top + barH + 25);
@@ -1868,7 +1888,7 @@ export class Renderer {
       ctx.textAlign = left ? 'left' : 'right';
       ctx.lineWidth = 6;
       ctx.strokeStyle = INK;
-      const barLabel = `超 ${bars}`;
+      const barLabel = T('超 {n}', { n: bars });
       const labelX = left ? mx + mw + 12 : mx - 12;
       ctx.strokeText(barLabel, labelX, my + 8);
       ctx.fillStyle = bars >= 1 ? '#f6c445' : PAPER;
@@ -1891,14 +1911,14 @@ export class Renderer {
         const offset = ctx.measureText(String(c.hits)).width + 12;
         ctx.font = `30px ${DISPLAY}`;
         ctx.lineWidth = 8;
-        ctx.strokeText('連撃', left ? offset : -offset, 8);
+        ctx.strokeText(T('連撃'), left ? offset : -offset, 8);
         ctx.fillStyle = PAPER;
-        ctx.fillText('連撃', left ? offset : -offset, 8);
+        ctx.fillText(T('連撃'), left ? offset : -offset, 8);
         ctx.font = `24px ${DISPLAY}`;
         ctx.lineWidth = 7;
-        ctx.strokeText(`${c.dmg} ダメージ`, 0, 58 + size * 0.1);
+        ctx.strokeText(T('{n} ダメージ', { n: c.dmg }), 0, 58 + size * 0.1);
         ctx.fillStyle = '#ffd983';
-        ctx.fillText(`${c.dmg} ダメージ`, 0, 58 + size * 0.1);
+        ctx.fillText(T('{n} ダメージ', { n: c.dmg }), 0, 58 + size * 0.1);
         ctx.restore();
       }
     });
@@ -1916,7 +1936,7 @@ export class Renderer {
     ctx.textBaseline = 'middle';
     if (s.training) {
       ctx.font = `20px ${DISPLAY}`;
-      ctx.fillText('練習', cx, 50);
+      ctx.fillText(T('練習'), cx, 50);
     } else {
       ctx.font = `42px ${DISPLAY}`;
       ctx.fillText(String(Math.ceil(s.time / 60)), cx, 50);

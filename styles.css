@@ -10,6 +10,10 @@
   --body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif;
   color-scheme: dark;
 }
+/* 中国語・韓国語は日本語の字体に無い字があるので、その言語の字体を先に使う（i18n.js が読み込む） */
+html.lang-zh { --display: "Noto Sans SC", "Dela Gothic One", sans-serif; --body: "Noto Sans SC", "Zen Kaku Gothic New", sans-serif; }
+html.lang-ko { --display: "Dela Gothic One", "Noto Sans KR", sans-serif; --body: "Noto Sans KR", "Zen Kaku Gothic New", sans-serif; }
+
 /* manipulation：2回タップでの拡大を止める（スクロールはできる） */
 html, body { height: 100%; background: var(--ink); overscroll-behavior: none; touch-action: manipulation; }
 body {

@@ -1,6 +1,7 @@
 // 相手とのつなぎ方。部屋コードで出会い、できれば端末どうしの直結(WebRTC)に切り替える。
 // send(msg, fast): fast=true は入力など「落ちてもよいが速さ優先」のデータ
 import { SUPABASE_URL, SUPABASE_KEY } from './online-config.js';
+import { T } from './i18n.js';
 
 const SUPABASE_SCRIPT = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -59,7 +60,7 @@ function loadSupabase() {
     const el = document.createElement('script');
     el.src = SUPABASE_SCRIPT;
     el.onload = () => resolve(window.supabase);
-    el.onerror = () => reject(new Error('通信用の部品を読み込めませんでした'));
+    el.onerror = () => reject(new Error(T('通信用の部品を読み込めませんでした')));
     document.head.append(el);
   });
 }
@@ -91,14 +92,14 @@ class SupabaseTransport {
       if (payload.from !== this.id && (!payload.to || payload.to === this.id)) this.handleSignal(payload);
     });
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('サーバーに接続できませんでした')), 12000);
+      const timer = setTimeout(() => reject(new Error(T('サーバーに接続できませんでした'))), 12000);
       this.channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           clearTimeout(timer);
           resolve();
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           clearTimeout(timer);
-          reject(new Error('サーバーに接続できませんでした'));
+          reject(new Error(T('サーバーに接続できませんでした')));
         }
       });
     });
@@ -208,7 +209,7 @@ export class OnlineLink {
     this.transport.send({ t: 'hello', host: this.host, id: this.transport.id });
     if (!this.host) {
       this.joinTimer = setTimeout(() => {
-        if (!this.peerId && this.onFail) this.onFail('その部屋は見つかりませんでした。コードを確かめてね');
+        if (!this.peerId && this.onFail) this.onFail(T('その部屋は見つかりませんでした。コードを確かめてね'));
       }, 10000);
     }
   }
@@ -217,7 +218,7 @@ export class OnlineLink {
     if (m.t === 'hello') {
       if (m.host === this.host) {
         // 同じ役割どうし（同じコードの部屋が重なった）はつながない
-        if (this.host && this.onFail && !this.peerId) this.onFail('この部屋コードは使われています。作り直してね');
+        if (this.host && this.onFail && !this.peerId) this.onFail(T('この部屋コードは使われています。作り直してね'));
         return;
       }
       if (this.peerId && this.peerId !== m.id) {
@@ -233,7 +234,7 @@ export class OnlineLink {
       return;
     }
     if (m.t === 'full') {
-      if (m.to === this.transport.id && this.onFail) this.onFail('その部屋はもう満員です');
+      if (m.to === this.transport.id && this.onFail) this.onFail(T('その部屋はもう満員です'));
       return;
     }
     if (this.onMessage) this.onMessage(m);

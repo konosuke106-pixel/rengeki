@@ -10,6 +10,7 @@ import { GROUND_Y, VIEW_W, VIEW_H, MAX_VIEW_W, BTN } from './config.js';
 import { unlockAudio, playSound, isMuted, setMuted } from './audio.js';
 import { RollbackSession } from './rollback.js';
 import { OnlineLink, makeRoomCode, normalizeRoomCode, onlineAvailable } from './net.js';
+import { T, TX, LANGS, getLang, setLang, onLangChange, applyDom } from './i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
 const screens = ['#screen-title', '#screen-select', '#screen-stage', '#screen-battle'];
@@ -81,18 +82,18 @@ function buildSelect() {
 
     const name = document.createElement('div');
     name.className = 'char-name';
-    name.textContent = ch.name;
+    name.textContent = T(ch.name);
     const title = document.createElement('div');
     title.className = 'char-title';
-    title.textContent = ch.title;
+    title.textContent = T(ch.title);
     const style = document.createElement('p');
     style.className = 'char-style';
-    style.textContent = ch.style;
+    style.textContent = T(ch.style);
     const stats = document.createElement('dl');
     stats.className = 'char-stats';
     Object.entries(ch.stats).forEach(([k, v]) => {
       const dt = document.createElement('dt');
-      dt.textContent = k;
+      dt.textContent = T(k);
       const dd = document.createElement('dd');
       dd.textContent = '■'.repeat(v) + '□'.repeat(5 - v);
       stats.append(dt, dd);
@@ -108,12 +109,12 @@ function buildSelect() {
 
 function updateSelectHeading() {
   const labels = {
-    cpu: ['あなたのキャラを選ぶ', '相手のキャラを選ぶ'],
-    versus: ['1Pのキャラを選ぶ', '2Pのキャラを選ぶ'],
-    training: ['練習するキャラを選ぶ', '練習相手を選ぶ'],
-    online: ['自分のキャラを選ぶ', '相手の準備を待っています'],
+    cpu: [TX('あなたのキャラを選ぶ'), TX('相手のキャラを選ぶ')],
+    versus: [TX('1Pのキャラを選ぶ'), TX('2Pのキャラを選ぶ')],
+    training: [TX('練習するキャラを選ぶ'), TX('練習相手を選ぶ')],
+    online: [TX('自分のキャラを選ぶ'), TX('相手の準備を待っています')],
   };
-  $('#select-heading').textContent = labels[app.mode][app.picking];
+  $('#select-heading').textContent = T(labels[app.mode][app.picking]);
   $('#cpu-level').hidden = app.mode !== 'cpu';
   document.querySelectorAll('.char-card').forEach((el) => {
     el.classList.toggle('picked', app.picking === 1 && el.dataset.char === app.picks[0]);
@@ -158,10 +159,12 @@ function stageCard(id, name, note, home) {
   cv.height = 180;
   const nm = document.createElement('div');
   nm.className = 'stage-name';
-  nm.textContent = name;
+  nm.textContent = T(name);
+  btn.dataset.name = name;
   const nt = document.createElement('div');
   nt.className = 'stage-note';
-  nt.textContent = note;
+  nt.textContent = T(note);
+  btn.dataset.note = note;
   if (!home && STAGE_INFO[id].plain) btn.classList.add('plain');
   btn.append(cv, nm, nt);
   btn.addEventListener('click', () => {
@@ -177,7 +180,7 @@ function openStageSelect() {
   const homeId = CHARS[app.picks[1]].stage;
   if (!stageCardsBuilt) {
     stageCardsBuilt = true;
-    wrap.append(stageCard('', 'おまかせ', '', true));
+    wrap.append(stageCard('', TX('おまかせ'), '', true));
     for (const id of STAGE_IDS) wrap.append(stageCard(id, STAGE_INFO[id].name, STAGE_INFO[id].note || '', false));
     // 見本の絵は重いので、1枚ずつ少しずつ描く
     const ids = STAGE_IDS.slice();
@@ -189,12 +192,24 @@ function openStageSelect() {
     };
     requestAnimationFrame(next);
   }
-  // 「おまかせ」は相手（2人目）のキャラのステージ
   const home = wrap.querySelector('.stage-card.home');
-  home.querySelector('.stage-note').textContent = `${CHARS[app.picks[1]].name}のステージ（${STAGE_INFO[homeId].name}）`;
+  syncStageText();
   paintStagePreview(home.querySelector('canvas'), homeId);
   show('#screen-stage');
   home.focus();
+}
+
+// ステージの札の文字（言語を変えた時も呼ぶ）。「おまかせ」は相手（2人目）のキャラのステージ
+function syncStageText() {
+  document.querySelectorAll('#stage-list .stage-card').forEach((card) => {
+    card.querySelector('.stage-name').textContent = T(card.dataset.name);
+    card.querySelector('.stage-note').textContent = T(card.dataset.note);
+  });
+  const home = $('#stage-list .stage-card.home');
+  if (home && app.picks[1]) {
+    const homeId = CHARS[app.picks[1]].stage;
+    home.querySelector('.stage-note').textContent = T('{name}のステージ（{stage}）', { name: T(CHARS[app.picks[1]].name), stage: T(STAGE_INFO[homeId].name) });
+  }
 }
 
 /* ---------- 試合 ---------- */
@@ -239,31 +254,31 @@ function startMatch() {
 
 const GUIDE_STEPS = [
   {
-    title: '歩く', touch: '左のスティックを、相手のいる方へ倒そう', keys: 'A か D で、相手のいる方へ歩こう', hint: '#stick-base',
+    title: TX('歩く'), touch: TX('左のスティックを、相手のいる方へ倒そう'), keys: TX('A か D で、相手のいる方へ歩こう'), hint: '#stick-base',
     done: (s, p, g) => {
       g.hold = (p.st === 'walk' || p.st === 'dash') && p.vx * p.facing > 0 ? g.hold + 1 : 0;
       return g.hold >= 15;
     },
   },
   {
-    title: 'ジャンプ', touch: '「ジャンプ」ボタンを押そう（スティックを上に倒してもOK）', keys: 'W を押そう', hint: '[data-btn="U"]',
+    title: TX('ジャンプ'), touch: TX('「ジャンプ」ボタンを押そう（スティックを上に倒してもOK）'), keys: TX('W を押そう'), hint: '[data-btn="U"]',
     done: (s, p) => p.st === 'air',
   },
   {
-    title: 'しゃがむ', touch: 'スティックを下に倒したままにしよう', keys: 'S を押したままにしよう', hint: '#stick-base',
+    title: TX('しゃがむ'), touch: TX('スティックを下に倒したままにしよう'), keys: TX('S を押したままにしよう'), hint: '#stick-base',
     done: (s, p, g) => {
       g.hold = p.st === 'crouch' ? g.hold + 1 : 0;
       return g.hold >= 12;
     },
   },
   {
-    title: 'ガード', touch: '相手が攻撃してくるよ。「ガード」ボタンを押し続けて防ごう', keys: '相手が攻撃してくるよ。スペースキーを押し続けて防ごう', hint: '[data-guard]', dummy: 'attack',
+    title: TX('ガード'), touch: TX('相手が攻撃してくるよ。「ガード」ボタンを押し続けて防ごう'), keys: TX('相手が攻撃してくるよ。スペースキーを押し続けて防ごう'), hint: '[data-guard]', dummy: 'attack',
     done: (s) => s.events.some((e) => (e.t === 'block' && e.by === 1) || (e.t === 'justGuard' && e.by === 0)),
   },
   {
-    title: 'ジャストガード',
-    touch: '攻撃が当たる直前に「ガード」を押し始めよう。成功すると相手がよろけて、反撃のチャンス！（難しければ、何回か防げば次へ進むよ）',
-    keys: '攻撃が当たる直前にスペースキーを押し始めよう。成功すると相手がよろけて、反撃のチャンス！（難しければ、何回か防げば次へ進むよ）',
+    title: TX('ジャストガード'),
+    touch: TX('攻撃が当たる直前に「ガード」を押し始めよう。成功すると相手がよろけて、反撃のチャンス！（難しければ、何回か防げば次へ進むよ）'),
+    keys: TX('攻撃が当たる直前にスペースキーを押し始めよう。成功すると相手がよろけて、反撃のチャンス！（難しければ、何回か防げば次へ進むよ）'),
     hint: '[data-guard]', dummy: 'attack',
     done: (s, p, g) => {
       if (s.events.some((e) => e.t === 'justGuard' && e.by === 0)) return true;
@@ -272,22 +287,22 @@ const GUIDE_STEPS = [
     },
   },
   {
-    title: 'かわす',
-    touch: 'スティックを倒しながら「ガード」を押そう。その方向へ転がって攻撃をすり抜けるよ（前に転がれば相手の後ろへ回れる）',
-    keys: 'A か D を押しながらスペースを押そう。その方向へ転がって攻撃をすり抜けるよ（前に転がれば相手の後ろへ回れる）',
+    title: TX('かわす'),
+    touch: TX('スティックを倒しながら「ガード」を押そう。その方向へ転がって攻撃をすり抜けるよ（前に転がれば相手の後ろへ回れる）'),
+    keys: TX('A か D を押しながらスペースを押そう。その方向へ転がって攻撃をすり抜けるよ（前に転がれば相手の後ろへ回れる）'),
     hint: '[data-guard], #stick-base', dummy: 'attack',
     done: (s, p) => p.st === 'evade' || (p.st === 'dash' && p.dashDir !== p.facing),
   },
   {
-    title: '攻撃', touch: '近づいて「弱」を押し、相手に当てよう', keys: '近づいて J を押し、相手に当てよう', hint: '[data-btn="A"]',
+    title: TX('攻撃'), touch: TX('近づいて「弱」を押し、相手に当てよう'), keys: TX('近づいて J を押し、相手に当てよう'), hint: '[data-btn="A"]',
     done: (s) => s.events.some((e) => e.t === 'hit' && e.by === 0),
   },
   {
-    title: 'コンボ', touch: '近づいて「弱→中→強」と順に押し、3回つなげよう', keys: '近づいて J→K→L と順に押し、3回つなげよう', hint: '[data-btn="B"], [data-btn="C"], [data-btn="A"]',
+    title: TX('コンボ'), touch: TX('近づいて「弱→中→強」と順に押し、3回つなげよう'), keys: TX('近づいて J→K→L と順に押し、3回つなげよう'), hint: '[data-btn="B"], [data-btn="C"], [data-btn="A"]',
     done: (s) => s.events.some((e) => e.t === 'hit' && e.by === 0 && e.hits >= 3),
   },
   {
-    title: '必殺技', touch: '「必殺」を押そう。コンボの最後につなげると強いよ', keys: 'U を押そう。コンボの最後につなげると強いよ', hint: '[data-btn="S"]',
+    title: TX('必殺技'), touch: TX('「必殺」を押そう。コンボの最後につなげると強いよ'), keys: TX('U を押そう。コンボの最後につなげると強いよ'), hint: '[data-btn="S"]',
     done: (s, p) => p.st === 'attack' && moveOf(p) && moveOf(p).rank === 4,
   },
 ];
@@ -310,8 +325,8 @@ function showGuideStep() {
   const stepDef = GUIDE_STEPS[g.i];
   const touch = window.matchMedia('(pointer: coarse)').matches;
   $('#guide-count').textContent = `${g.i + 1} / ${GUIDE_STEPS.length}`;
-  $('#guide-title').textContent = stepDef.title;
-  $('#guide-text').textContent = touch ? stepDef.touch : stepDef.keys;
+  $('#guide-title').textContent = T(stepDef.title);
+  $('#guide-text').textContent = T(touch ? stepDef.touch : stepDef.keys);
   $('#guide').classList.remove('ok');
   setGuideHint(stepDef.hint);
   app.dummy = stepDef.dummy || 'stand';
@@ -323,7 +338,7 @@ function startGuide() {
   stopGuide();
   app.guide = { i: 0, hold: 0, wait: 0, savedDummy: app.dummy, ending: false };
   $('#guide').hidden = false;
-  $('#guide-skip').textContent = 'ガイドを終わる';
+  $('#guide-skip').textContent = T('ガイドを終わる');
   showGuideStep();
 }
 
@@ -352,10 +367,10 @@ function guideTick(s) {
         g.wait = 360;
         app.dummy = g.savedDummy;
         $('#guide').classList.remove('ok');
-        $('#guide-count').textContent = '完了';
-        $('#guide-title').textContent = 'これで基本はOK！';
-        $('#guide-text').textContent = '技の出し方は「II」で見られるよ。自由に練習してね';
-        $('#guide-skip').textContent = '閉じる';
+        $('#guide-count').textContent = T('完了');
+        $('#guide-title').textContent = T('これで基本はOK！');
+        $('#guide-text').textContent = T('技の出し方は「II」で見られるよ。自由に練習してね');
+        $('#guide-skip').textContent = T('閉じる');
       }
     }
     return;
@@ -364,7 +379,7 @@ function guideTick(s) {
     g.wait = 40;
     playSound('ui');
     $('#guide').classList.add('ok');
-    $('#guide-title').textContent = `${GUIDE_STEPS[g.i].title} OK！`;
+    $('#guide-title').textContent = T('{title} OK！', { title: T(GUIDE_STEPS[g.i].title) });
     setGuideHint(null);
   }
 }
@@ -386,14 +401,14 @@ function netFrame(now) {
     togglePause(false);
     showResult(sess.state);
   }
-  if (sess.desync && !net.ended) endOnline('通信の食い違いが起きました。もう一度部屋を作ってね');
-  else if (sess.silentFor(performance.now()) > NET_TIMEOUT_MS && !net.ended) endOnline('相手との通信が切れました');
+  if (sess.desync && !net.ended) endOnline(T('通信の食い違いが起きました。もう一度部屋を作ってね'));
+  else if (sess.silentFor(performance.now()) > NET_TIMEOUT_MS && !net.ended) endOnline(T('相手との通信が切れました'));
 }
 
 function netNote() {
   const net = app.net;
   if (!net || !net.session) return undefined;
-  const kind = { direct: '直結', relay: '中継', local: 'テスト回線' }[net.link.transport.kind] || '';
+  const kind = { direct: T('直結'), relay: T('中継'), local: T('テスト回線') }[net.link.transport.kind] || '';
   return `${kind} ${Math.round(net.session.rtt)}ms`;
 }
 
@@ -444,8 +459,8 @@ function updateControls(s) {
   if (el.classList.contains('ready') !== ready) el.classList.toggle('ready', ready);
   const opOnRight = op.x > me.x;
   input.backBit = opOnRight ? BTN.L : BTN.R;
-  const left = opOnRight ? '後ろへ' : '前へ';
-  const right = opOnRight ? '前へ' : '後ろへ';
+  const left = opOnRight ? T('後ろへ') : T('前へ');
+  const right = opOnRight ? T('前へ') : T('後ろへ');
   if ($('#stick-left').textContent !== left) {
     $('#stick-left').textContent = left;
     $('#stick-right').textContent = right;
@@ -457,22 +472,22 @@ function showResult(s) {
   const win = s.matchWinner;
   const title = $('#result-title');
   if (win < 0) {
-    title.textContent = '引き分け';
+    title.textContent = T('引き分け');
   } else {
     const ch = CHARS[s.ps[win].char];
-    if (app.mode === 'cpu') title.textContent = win === 0 ? '勝利！' : '敗北…';
-    else if (app.mode === 'online') title.textContent = win === (app.net.host ? 0 : 1) ? '勝利！' : '敗北…';
-    else title.textContent = `${win + 1}P ${ch.name} の勝ち`;
+    if (app.mode === 'cpu') title.textContent = win === 0 ? T('勝利！') : T('敗北…');
+    else if (app.mode === 'online') title.textContent = win === (app.net.host ? 0 : 1) ? T('勝利！') : T('敗北…');
+    else title.textContent = T('{n}P {name} の勝ち', { n: win + 1, name: T(ch.name) });
   }
   const body = $('#result-stats');
   body.textContent = '';
-  const header = ['', ...s.ps.map((p) => CHARS[p.char].name)];
+  const header = ['', ...s.ps.map((p) => T(CHARS[p.char].name))];
   const rows = [
     header,
-    ['取ったラウンド', ...s.ps.map((p) => p.wins)],
-    ['最大コンボ', ...s.ps.map((p) => `${p.stats.maxCombo} 連撃`)],
-    ['与えたダメージ', ...s.ps.map((p) => p.stats.dmg)],
-    ['超必殺', ...s.ps.map((p) => `${p.stats.supers} 回`)],
+    [T('取ったラウンド'), ...s.ps.map((p) => p.wins)],
+    [T('最大コンボ'), ...s.ps.map((p) => T('{n} 連撃', { n: p.stats.maxCombo }))],
+    [T('与えたダメージ'), ...s.ps.map((p) => p.stats.dmg)],
+    [T('超必殺'), ...s.ps.map((p) => T('{n} 回', { n: p.stats.supers }))],
   ];
   rows.forEach((row, ri) => {
     const tr = document.createElement('tr');
@@ -486,7 +501,7 @@ function showResult(s) {
   $('#result').hidden = false;
   $('#btn-rematch').hidden = false;
   $('#btn-rematch').disabled = false;
-  $('#btn-rematch').textContent = 'もう一戦';
+  $('#btn-rematch').textContent = T('もう一戦');
   $('#btn-reselect').hidden = app.mode === 'online';
   $('#btn-rematch').focus();
 }
@@ -497,7 +512,7 @@ function togglePause(force) {
   $('#pause').hidden = !app.paused;
   // オンラインでは止められない。メニューを開いている間も試合は進む
   $('#btn-retry').hidden = app.mode === 'online';
-  $('#pause h2').textContent = app.mode === 'online' ? '試合は続いています' : '一時停止';
+  $('#pause h2').textContent = app.mode === 'online' ? T('試合は続いています') : T('一時停止');
   if (app.paused) fillMoveList();
   app.last = performance.now();
 }
@@ -511,7 +526,7 @@ function setOnlineError(text) {
 }
 
 function openOnline() {
-  setOnlineError(onlineAvailable() ? '' : 'オンライン対戦のサーバーがまだ設定されていません');
+  setOnlineError(onlineAvailable() ? '' : T('オンライン対戦のサーバーがまだ設定されていません'));
   $('#online-menu').hidden = false;
   $('#online-wait').hidden = true;
   $('#btn-room-create').disabled = !onlineAvailable();
@@ -531,7 +546,8 @@ async function enterRoom(code, host) {
   $('#online-wait').hidden = false;
   $('#room-code').textContent = code;
   $('#btn-room-copy').hidden = !host;
-  $('#online-status').textContent = 'サーバーにつないでいます…';
+  $('#btn-room-copy').textContent = T('コードをコピー');
+  $('#online-status').textContent = T('サーバーにつないでいます…');
   const link = new OnlineLink({
     room: code,
     host,
@@ -543,7 +559,7 @@ async function enterRoom(code, host) {
   try {
     await link.connect();
     if (app.net && app.net.link === link) {
-      $('#online-status').textContent = host ? 'このコードを相手に伝えてね。入ってくるのを待っています…' : '部屋を探しています…';
+      $('#online-status').textContent = host ? T('このコードを相手に伝えてね。入ってくるのを待っています…') : T('部屋を探しています…');
     }
   } catch (err) {
     netFail(err.message);
@@ -656,7 +672,7 @@ function netMessage(m) {
       }
       break;
     case 'bye':
-      if (!net.ended) endOnline('相手が部屋を出ました');
+      if (!net.ended) endOnline(T('相手が部屋を出ました'));
       break;
     default:
       break;
@@ -668,7 +684,7 @@ function askRematch() {
   net.wantRematch = true;
   net.link.send({ t: 'rematch', g: net.generation });
   $('#btn-rematch').disabled = true;
-  $('#btn-rematch').textContent = '相手を待っています…';
+  $('#btn-rematch').textContent = T('相手を待っています…');
   maybeRematch();
 }
 
@@ -712,9 +728,9 @@ function fillMoveList() {
   const box = $('#movelist');
   box.textContent = '';
   const ch = CHARS[app.match.ps[myIdx()].char];
-  const rows = SPECIAL_COMMANDS.map(([id, simple, motion]) => [ch.moves[id].name, simple + (ch.moves[id].hint ? `（${ch.moves[id].hint}）` : ''), motion]);
-  if (ch.moves.jS) rows.splice(3, 0, [ch.moves.jS.name, 'ジャンプ中に必殺', '']);
-  rows.push(['溜め強', '強を押し続けて離す', '最大でガード崩し']);
+  const rows = SPECIAL_COMMANDS.map(([id, simple, motion]) => [T(ch.moves[id].name), T(simple) + (ch.moves[id].hint ? T('（{hint}）', { hint: T(ch.moves[id].hint) }) : ''), T(motion)]);
+  if (ch.moves.jS) rows.splice(3, 0, [T(ch.moves.jS.name), T('ジャンプ中に必殺'), '']);
+  rows.push([T('溜め強'), T('強を押し続けて離す'), T('最大でガード崩し')]);
   rows.forEach(([name, simple, motion]) => {
     const tr = document.createElement('tr');
     [name, simple, motion].forEach((c) => {
@@ -724,7 +740,7 @@ function fillMoveList() {
     });
     box.append(tr);
   });
-  $('#movelist-name').textContent = `${ch.name}の技`;
+  $('#movelist-name').textContent = T('{name}の技', { name: T(ch.name) });
 }
 
 function quitToTitle() {
@@ -794,7 +810,7 @@ bind('#btn-room-create', () => enterRoom(makeRoomCode(), true));
 bind('#btn-room-join', () => {
   const code = normalizeRoomCode($('#room-input').value);
   if (code.length !== 4) {
-    setOnlineError('コードは4文字で入れてね');
+    setOnlineError(T('コードは4文字で入れてね'));
     return;
   }
   enterRoom(code, false);
@@ -807,9 +823,9 @@ $('#room-input').addEventListener('keyup', (e) => e.stopPropagation());
 $('#btn-room-copy').addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText($('#room-code').textContent);
-    $('#btn-room-copy').textContent = 'コピーしました';
+    $('#btn-room-copy').textContent = T('コピーしました');
   } catch {
-    $('#btn-room-copy').textContent = 'コードを長押ししてコピーしてね';
+    $('#btn-room-copy').textContent = T('コードを長押ししてコピーしてね');
   }
 });
 bind('#btn-back', () => {
@@ -829,7 +845,7 @@ bind('#btn-back', () => {
 });
 bind('#btn-gimmick', () => {
   app.gimmicks = !app.gimmicks;
-  $('#btn-gimmick').textContent = `ギミック：${app.gimmicks ? 'あり' : 'なし'}`;
+  $('#btn-gimmick').textContent = (app.gimmicks ? T('ギミック：あり') : T('ギミック：なし'));
   $('#btn-gimmick').classList.toggle('on', app.gimmicks);
   $('#stage-list').classList.toggle('no-gimmick', !app.gimmicks);
 });
@@ -876,9 +892,31 @@ $('#btn-sound').addEventListener('click', () => {
   playSound('ui');
 });
 function syncSoundLabel() {
-  $('#btn-sound').textContent = isMuted() ? '音：切' : '音：入';
+  $('#btn-sound').textContent = isMuted() ? T('音：切') : T('音：入');
 }
 syncSoundLabel();
+
+// 言語の切り替え（タイトル画面）。押すたびに次の言語へ
+function syncLangLabel() {
+  $('#btn-lang').textContent = LANGS.find((l) => l.id === getLang()).label;
+}
+$('#btn-lang').addEventListener('click', () => {
+  const i = LANGS.findIndex((l) => l.id === getLang());
+  setLang(LANGS[(i + 1) % LANGS.length].id);
+  playSound('ui');
+});
+function refreshLang() {
+  applyDom(document.body);
+  syncLangLabel();
+  syncSoundLabel();
+  syncFullLabel();
+  $('#btn-gimmick').textContent = app.gimmicks ? T('ギミック：あり') : T('ギミック：なし');
+  buildSelect();
+  if (app.mode) updateSelectHeading();
+  syncStageText();
+  $('#btn-room-copy').textContent = T('コードをコピー');
+}
+onLangChange(refreshLang);
 
 $('#dummy-mode').addEventListener('change', (e) => { app.dummy = e.target.value; e.target.blur(); });
 $('#show-hitbox').addEventListener('change', (e) => { app.hitboxes = e.target.checked; e.target.blur(); });
@@ -908,7 +946,7 @@ window.addEventListener('pointerup', autoFullscreen, { capture: true });
 window.addEventListener('touchend', autoFullscreen, { capture: true });
 
 function syncFullLabel() {
-  fullBtn.textContent = document.fullscreenElement ? '全画面を解除' : '全画面';
+  fullBtn.textContent = document.fullscreenElement ? T('全画面を解除') : T('全画面');
 }
 document.addEventListener('fullscreenchange', syncFullLabel);
 
@@ -1019,7 +1057,7 @@ function titleLoop() {
   requestAnimationFrame(titleLoop);
 }
 
-buildSelect();
+refreshLang();
 show('#screen-title');
 requestAnimationFrame(titleLoop);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(buildSelect);
