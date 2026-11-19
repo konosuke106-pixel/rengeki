@@ -1,0 +1,123 @@
+<!doctype html>
+<!-- X（SNS）用の画像の元絵。?kind=profile（1000x1000、丸く切り抜かれる）／header（1500x500）
+     ゲームのキャラ描画をそのまま使う。tools/make-sns.ps1 で PNG にする -->
+<html lang="ja"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@900&display=swap">
+<style>
+  html, body { margin: 0; overflow: hidden; background: #15101c; }
+  canvas { display: block; }
+  body.round canvas { clip-path: circle(50%); }
+</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+import { CHARS } from '../src/characters.js';
+import { POSES } from '../src/poses.js';
+import { paintFighter } from '../src/render.js';
+
+const params = new URLSearchParams(location.search);
+const kind = params.get('kind') || 'profile';
+if (params.has('round')) document.body.classList.add('round'); // 丸く切り抜いた見え方の確認用
+const W = kind === 'header' ? 1500 : 1000;
+const H = kind === 'header' ? 500 : 1000;
+const cv = document.getElementById('c');
+cv.width = W;
+cv.height = H;
+const ctx = cv.getContext('2d');
+
+// 日本語の字体は字ごとに分けて配られるので、使う字を指定して読み込む
+await document.fonts.load('400 100px "Dela Gothic One"', '連撃');
+await document.fonts.load('900 40px "Zen Kaku Gothic New"', 'RENGEKI');
+
+function sky(top, mid, bottom) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, top);
+  g.addColorStop(0.55, mid);
+  g.addColorStop(1, bottom);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function fighter(id, pose, x, y, scale, facing = 1, extra = {}) {
+  const ch = CHARS[id];
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  paintFighter(ctx, ch, ch.palettes[0], POSES[pose], 0, 0, facing, { clock: 10, ...extra });
+  ctx.restore();
+}
+
+function speedLines(lines) {
+  ctx.strokeStyle = 'rgba(255, 240, 210, 0.5)';
+  ctx.lineCap = 'round';
+  for (const [y, x0, x1, w] of lines) {
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(x0, y);
+    ctx.lineTo(x1, y);
+    ctx.stroke();
+  }
+}
+
+// 太い縁取りの文字
+function bigText(text, x, y, size, { fill = '#fff3dc', stroke = '#15101c', font = 'Dela Gothic One', weight = 400, spacing = 0, align = 'center' } = {}) {
+  ctx.font = `${weight} ${size}px "${font}"`;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'alphabetic';
+  if ('letterSpacing' in ctx) ctx.letterSpacing = `${spacing}px`;
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = size * 0.16;
+  ctx.strokeStyle = stroke;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = fill;
+  ctx.fillText(text, x, y);
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+}
+
+if (kind === 'profile') {
+  // 丸く切り抜かれても大事な所が残るよう、真ん中に寄せる
+  sky('#2a1840', '#8a2f45', '#e9853a');
+  ctx.fillStyle = '#f6c445';
+  ctx.beginPath();
+  ctx.arc(W * 0.5, H * 0.42, W * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  speedLines([[H * 0.3, W * 0.1, W * 0.3, 16], [H * 0.4, W * 0.06, W * 0.24, 12], [H * 0.5, W * 0.12, W * 0.28, 14]]);
+  fighter('kagari', 'heavy', W * 0.44, H * 1.12, 4.1);
+  // 下側を暗くして文字を読みやすく
+  const shade = ctx.createLinearGradient(0, H * 0.55, 0, H);
+  shade.addColorStop(0, 'rgba(21,16,28,0)');
+  shade.addColorStop(1, 'rgba(21,16,28,0.85)');
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, H * 0.55, W, H * 0.45);
+  bigText('連撃', W * 0.5, H * 0.87, 210, { fill: '#fff3dc', spacing: -6 });
+} else {
+  // ヘッダー：16人が並ぶ。左下はアイコンが重なるので、大事なものを置かない
+  sky('#20142f', '#7a2c4a', '#e07a3a');
+  ctx.fillStyle = '#f6c445';
+  ctx.beginPath();
+  ctx.arc(W * 0.5, H * 0.62, H * 0.42, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#15101c';
+  ctx.beginPath();
+  ctx.moveTo(0, H * 0.86);
+  for (const [x, y] of [[0.12, 0.8], [0.3, 0.86], [0.5, 0.78], [0.7, 0.86], [0.88, 0.8], [1, 0.84]]) ctx.lineTo(W * x, H * y);
+  ctx.lineTo(W, H);
+  ctx.lineTo(0, H);
+  ctx.fill();
+  const back = ['oni', 'shizuku', 'tsuzumi', 'maboroshi', 'yumi', 'kabuto', 'kage', 'goutetsu'];
+  const backPose = ['idle', 'cast', 'castW', 'parry', 'cast', 'parry', 'parry', 'idle'];
+  back.forEach((id, i) => {
+    const x = W * (0.07 + i * 0.123);
+    fighter(id, backPose[i], x, H * 0.84, 0.9, x < W / 2 ? 1 : -1);
+  });
+  const front = [['kusari', 'jab'], ['rai', 'idle'], ['haze', 'upper'], ['tsubasa', 'jump'], ['hayate', 'jump'], ['hami', 'crouch'], ['kogarashi', 'castW']];
+  const fx = [0.05, 0.17, 0.29, 0.4, 0.71, 0.84, 0.95];
+  front.forEach(([id, pose], i) => {
+    const lift = pose === 'jump' ? H * 0.12 : 0;
+    fighter(id, pose, W * fx[i], H * 1.0 - lift, 1.15, fx[i] < 0.5 ? 1 : -1);
+  });
+  fighter('kagari', 'heavy', W * 0.555, H * 1.02, 1.4);
+  bigText('連撃', W * 0.5, H * 0.36, 170, { spacing: -4 });
+  bigText('R E N G E K I', W * 0.5, H * 0.48, 40, { font: 'Zen Kaku Gothic New', weight: 900, fill: '#f6c445' });
+}
+document.title = 'ready';
+</script></body></html>
