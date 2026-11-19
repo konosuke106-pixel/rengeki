@@ -9,6 +9,32 @@ export const NET_VERSION = 'dev';
 
 const SUPABASE_SCRIPT = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+const ICE_FETCH_MS = 3000;
+
+// 直結できない時の中継役（TURN）の合い鍵を、サイトの /api/ice（functions/api/ice.js）からもらう。
+// もらえなければ今まで通り STUN だけ（直結できなければ Supabase 中継）。結果は覚えておき、何度も聞かない
+let icePromise = null;
+export function loadIceServers(fetchFn = (typeof fetch === 'function' ? fetch : null)) {
+  if (icePromise) return icePromise;
+  icePromise = (async () => {
+    if (!fetchFn) return ICE_SERVERS;
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = setTimeout(() => ctrl && ctrl.abort(), ICE_FETCH_MS);
+    try {
+      const res = await fetchFn('/api/ice', { signal: ctrl ? ctrl.signal : undefined, cache: 'no-store' });
+      if (!res.ok) throw new Error(String(res.status));
+      const data = await res.json();
+      if (!Array.isArray(data.iceServers) || !data.iceServers.length) throw new Error('empty');
+      return [...ICE_SERVERS, ...data.iceServers];
+    } catch {
+      icePromise = null; // 次の部屋でもう一度試す
+      return ICE_SERVERS;
+    } finally {
+      clearTimeout(timer);
+    }
+  })();
+  return icePromise;
+}
 const CODE_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
 export function makeRoomCode() {
@@ -83,6 +109,7 @@ class SupabaseTransport {
   }
 
   async open() {
+    this.ice = loadIceServers(); // 部屋につなぐ間に、並行して中継役の合い鍵をもらっておく
     const lib = await loadSupabase();
     this.client = lib.createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -127,16 +154,16 @@ class SupabaseTransport {
   // 部屋を作った側から呼ぶ。失敗しても中継のまま遊べる
   async startDirect(peerId) {
     this.peerId = peerId;
-    this.makePeerConnection();
+    this.makePeerConnection(await this.ice);
     this.attachChannel(this.pc.createDataChannel('input', { ordered: false, maxRetransmits: 0 }));
     const offer = await this.pc.createOffer();
     await this.pc.setLocalDescription(offer);
     this.relay('rtc', { to: peerId, sdp: this.pc.localDescription });
   }
 
-  makePeerConnection() {
-    if (typeof RTCPeerConnection === 'undefined') return;
-    this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  makePeerConnection(iceServers = ICE_SERVERS) {
+    if (typeof RTCPeerConnection === 'undefined' || this.closed) return;
+    this.pc = new RTCPeerConnection({ iceServers });
     this.pc.onicecandidate = (e) => {
       if (e.candidate) this.relay('rtc', { to: this.peerId, ice: e.candidate });
     };
@@ -162,7 +189,10 @@ class SupabaseTransport {
     try {
       if (p.sdp) {
         this.peerId = p.from;
-        if (!this.pc) this.makePeerConnection();
+        if (!this.pc) {
+          const ice = await this.ice;
+          if (!this.pc) this.makePeerConnection(ice);
+        }
         if (!this.pc) return;
         await this.pc.setRemoteDescription(p.sdp);
         for (const c of this.pendingIce.splice(0)) await this.pc.addIceCandidate(c);
