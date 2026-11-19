@@ -38,6 +38,7 @@
         <button class="chip" type="button" id="btn-sound">音：入</button>
         <button class="chip" type="button" id="btn-full">全画面</button>
         <button class="chip" type="button" id="btn-lang" aria-label="Language">日本語</button>
+        <button class="chip" type="button" id="btn-ranking" data-i18n>ランキング</button>
         <button class="chip" type="button" id="btn-account">ログイン</button>
       </div>
     </nav>
@@ -165,6 +166,16 @@
       </div>
       <p id="online-error" class="online-error" role="alert" hidden></p>
       <div class="panel-buttons"><button class="action sub" type="button" id="btn-online-close" data-i18n>戻る</button></div>
+    </div>
+  </div>
+
+  <div id="ranking" class="overlay" hidden>
+    <div class="panel ranking-panel">
+      <h2 data-i18n>ランキング</h2>
+      <p id="ranking-status" class="ranking-status" role="status"></p>
+      <div class="ranking-scroll"><table class="ranking-table"><tbody id="ranking-rows"></tbody></table></div>
+      <p id="ranking-me" class="ranking-me" hidden></p>
+      <div class="panel-buttons"><button class="action sub" type="button" id="btn-ranking-close" data-i18n>戻る</button></div>
     </div>
   </div>
 

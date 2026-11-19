@@ -11,7 +11,7 @@ import { unlockAudio, playSound, isMuted, setMuted } from './audio.js';
 import { RollbackSession } from './rollback.js';
 import { OnlineLink, makeRoomCode, normalizeRoomCode, onlineAvailable, createTransport, NET_VERSION } from './net.js';
 import { Matchmaker } from './lobby.js';
-import { account, onAccount, initAccount, signInGoogle, signOut, deleteAccount, saveName, validName, rankedMatchInfo, matchResultFor, rankedUid, reportStart, reportResult } from './account.js';
+import { account, onAccount, initAccount, signInGoogle, signOut, deleteAccount, saveName, validName, rankedMatchInfo, matchResultFor, rankedUid, reportStart, reportResult, loadRanking } from './account.js';
 import { T, TX, LANGS, getLang, setLang, onLangChange, applyDom } from './i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -1062,6 +1062,59 @@ function refreshLang() {
   if (!$('#account').hidden) fillAccount();
 }
 onLangChange(refreshLang);
+
+/* ---------- ランキング ---------- */
+
+async function openRanking() {
+  $('#ranking').hidden = false;
+  const status = $('#ranking-status');
+  const body = $('#ranking-rows');
+  const me = $('#ranking-me');
+  body.textContent = '';
+  me.hidden = true;
+  if (!onlineAvailable()) {
+    status.textContent = T('オンライン対戦のサーバーがまだ設定されていません');
+    return;
+  }
+  status.textContent = T('読み込み中…');
+  let data;
+  try {
+    data = await loadRanking();
+  } catch {
+    status.textContent = T('読み込めませんでした。時間をおいてもう一度試してね');
+    return;
+  }
+  if ($('#ranking').hidden) return;
+  const { profile } = account();
+  status.textContent = data.rows.length ? '' : T('まだ誰もいません。ランダム対戦で最初の1人になろう');
+  if (data.rows.length) {
+    const head = document.createElement('tr');
+    [T('順位'), T('名前'), T('レート'), T('勝ち / 試合')].forEach((c) => {
+      const th = document.createElement('th');
+      th.textContent = c;
+      head.append(th);
+    });
+    body.append(head);
+  }
+  for (const r of data.rows) {
+    const tr = document.createElement('tr');
+    if (profile && data.myRank === r.rank && profile.name === r.name) tr.className = 'me';
+    // 名前は人が決めた文字なので、必ず文字として入れる
+    [r.rank, r.name, r.rating, `${r.wins} / ${r.games}`].forEach((c) => {
+      const td = document.createElement('td');
+      td.textContent = String(c);
+      tr.append(td);
+    });
+    body.append(tr);
+  }
+  if (!account().user) me.textContent = T('ログインすると、ランダム対戦の結果でランキングに載ります');
+  else if (!data.myRank) me.textContent = T('ランダム対戦で1試合すると載ります');
+  else me.textContent = T('あなたは {rank}位（レート {rating}）', { rank: data.myRank, rating: profile ? profile.rating : '' });
+  me.hidden = false;
+}
+
+bind('#btn-ranking', () => openRanking());
+bind('#btn-ranking-close', () => { $('#ranking').hidden = true; });
 
 /* ---------- アカウント ---------- */
 
