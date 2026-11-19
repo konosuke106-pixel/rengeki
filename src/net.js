@@ -84,7 +84,7 @@ class LocalTransport {
   close() { this.channel.close(); }
 }
 
-function loadSupabase() {
+export function loadSupabase() {
   if (window.supabase) return Promise.resolve(window.supabase);
   return new Promise((resolve, reject) => {
     const el = document.createElement('script');

@@ -5,11 +5,11 @@ import { createHash } from 'node:crypto';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = (p) => readFileSync(root + p, 'utf8');
-const ORDER = ['config', 'text-en', 'text-es', 'text-zh', 'text-ko', 'i18n', 'characters', 'stages', 'sim', 'rollback', 'online-config', 'net', 'lobby', 'ai', 'input', 'poses', 'audio', 'render', 'main'];
+const ORDER = ['config', 'text-en', 'text-es', 'text-zh', 'text-ko', 'i18n', 'characters', 'stages', 'sim', 'rollback', 'online-config', 'net', 'lobby', 'account', 'ai', 'input', 'poses', 'audio', 'render', 'main'];
 
 const joined = ORDER.map((name) => read(`src/${name}.js`)
   .replace(/^import[\s\S]*?from\s+['"][^'"]+['"];?[ \t]*$/gm, '')
-  .replace(/^export\s+(?=(const|let|function|class)\b)/gm, '')).join('\n');
+  .replace(/^export\s+(?=(const|let|function|class|async)\b)/gm, '')).join('\n');
 // ゲームの版の印（コードが1文字でも違えば変わる）。ランダム対戦は同じ版どうしだけで組む
 const version = createHash('sha256').update(joined).digest('hex').slice(0, 10);
 const js = joined.replace("const NET_VERSION = 'dev';", `const NET_VERSION = '${version}';`);
