@@ -163,3 +163,9 @@ export function matchResultFor(s, myIdx) {
 
 // 自分のログインの id（レートの付く試合に出られる時だけ）
 export const rankedUid = () => (rankedReady() ? acctState.user.id : null);
+
+// 試合の途中で異常に終わった時（相手が切れた・通信が食い違った）に届ける結果。
+// 何も届けないと、相手のでっち上げの「勝ち」だけが10分後に採用されてしまうので、必ず「相手が切れた」を届けて食い違いにする
+export function abnormalEndResult({ ranked, inMatch, reportedGen, generation }) {
+  return ranked && inMatch && reportedGen !== generation ? 'dc' : null;
+}

@@ -30,54 +30,54 @@ declare a uuid; b uuid; c uuid; d uuid; j jsonb; i int; p public.profiles;
 begin
   -- 一致：A の勝ち
   a := pg_temp.mk('アカ'); b := pg_temp.mk('ブルー');
-  perform pg_temp.start2(a, b, 'Rtest1');
-  j := pg_temp.rep(a, b, 'Rtest1', 'win');
+  perform pg_temp.start2(a, b, 'RTSTAAAA2');
+  j := pg_temp.rep(a, b, 'RTSTAAAA2', 'win');
   perform pg_temp.check(j is null, '1人目の報告ではまだ確定しない');
-  j := pg_temp.rep(b, a, 'Rtest1', 'loss');
+  j := pg_temp.rep(b, a, 'RTSTAAAA2', 'loss');
   perform pg_temp.check((j->>'delta')::int = -20 and (j->>'rating')::int = 1480, '負けた側に -20 / 1480 が返る: ' || coalesce(j::text, 'null'));
   perform pg_temp.check(pg_temp.r(a) = 1520 and pg_temp.r(b) = 1480, '一致で ±20');
   select * into p from public.profiles where id = a;
   perform pg_temp.check(p.games = 1 and p.wins = 1, '試合数と勝ち数');
   -- 二重報告：同じ報告をもう一度送っても動かない
-  j := pg_temp.rep(a, b, 'Rtest1', 'win');
+  j := pg_temp.rep(a, b, 'RTSTAAAA2', 'win');
   perform pg_temp.check(pg_temp.r(a) = 1520, '二重報告で二重に動かない');
 
   -- 食い違い：両方が勝ちを主張
-  perform pg_temp.start2(a, b, 'Rtest2');
-  perform pg_temp.rep(a, b, 'Rtest2', 'win'); perform pg_temp.rep(b, a, 'Rtest2', 'win');
+  perform pg_temp.start2(a, b, 'RTSTAAAA3');
+  perform pg_temp.rep(a, b, 'RTSTAAAA3', 'win'); perform pg_temp.rep(b, a, 'RTSTAAAA3', 'win');
   perform pg_temp.check(pg_temp.r(a) = 1520 and pg_temp.r(b) = 1480, '食い違いは動かない');
 
   -- 引き分け
   c := pg_temp.mk('シロ'); d := pg_temp.mk('クロ');
-  perform pg_temp.start2(c, d, 'Rtest3');
-  perform pg_temp.rep(c, d, 'Rtest3', 'draw'); perform pg_temp.rep(d, c, 'Rtest3', 'draw');
+  perform pg_temp.start2(c, d, 'RTSTAAAA4');
+  perform pg_temp.rep(c, d, 'RTSTAAAA4', 'draw'); perform pg_temp.rep(d, c, 'RTSTAAAA4', 'draw');
   perform pg_temp.check(pg_temp.r(c) = 1500 and (select games from public.profiles where id = c) = 1, '引き分けは同点どうしで動かず、試合数は増える');
 
   -- 両方「相手が切れた」
-  perform pg_temp.start2(c, d, 'Rtest4');
-  perform pg_temp.rep(c, d, 'Rtest4', 'dc'); perform pg_temp.rep(d, c, 'Rtest4', 'dc');
+  perform pg_temp.start2(c, d, 'RTSTAAAA5');
+  perform pg_temp.rep(c, d, 'RTSTAAAA5', 'dc'); perform pg_temp.rep(d, c, 'RTSTAAAA5', 'dc');
   perform pg_temp.check(pg_temp.r(c) = 1500 and pg_temp.r(d) = 1500, '両方 dc は動かない');
 
   -- 片方だけ：10分たつと報告した側の結果で確定（逃げても負けを避けられない）
-  perform pg_temp.start2(c, d, 'Rtest5');
-  perform pg_temp.rep(c, d, 'Rtest5', 'dc');
+  perform pg_temp.start2(c, d, 'RTSTAAAA6');
+  perform pg_temp.rep(c, d, 'RTSTAAAA6', 'dc');
   perform public.finalize_stale();
   perform pg_temp.check(pg_temp.r(c) = 1500, '10分前は確定しない');
-  update public.match_reports set created_at = now() - interval '11 minutes' where room = 'Rtest5';
+  update public.match_reports set created_at = now() - interval '11 minutes' where room = 'RTSTAAAA6';
   perform public.finalize_stale();
   perform pg_temp.check(pg_temp.r(c) = 1520 and pg_temp.r(d) = 1480, '10分後に dc の報告で勝ち');
 
   -- 開始が片方しか届いていない試合は数えない（でっち上げ防止）
-  perform pg_temp.as_user(c); perform public.start_match('Rtest6', 0, d);
-  perform pg_temp.rep(c, d, 'Rtest6', 'win');
-  update public.match_reports set created_at = now() - interval '11 minutes' where room = 'Rtest6';
+  perform pg_temp.as_user(c); perform public.start_match('RTSTAAAA7', 0, d);
+  perform pg_temp.rep(c, d, 'RTSTAAAA7', 'win');
+  update public.match_reports set created_at = now() - interval '11 minutes' where room = 'RTSTAAAA7';
   perform public.finalize_stale();
   perform pg_temp.check(pg_temp.r(c) = 1520, '開始が片方だけなら動かない');
 
   -- 同じ2人は1日5回まで（a-b はここまでで数えた試合が1回）
   for i in 1..5 loop
-    perform pg_temp.start2(a, b, 'Rcap' || i);
-    perform pg_temp.rep(a, b, 'Rcap' || i, 'win'); perform pg_temp.rep(b, a, 'Rcap' || i, 'loss');
+    perform pg_temp.start2(a, b, 'RCAPAAAA' || (i + 1));
+    perform pg_temp.rep(a, b, 'RCAPAAAA' || (i + 1), 'win'); perform pg_temp.rep(b, a, 'RCAPAAAA' || (i + 1), 'loss');
   end loop;
   perform pg_temp.check((select games from public.profiles where id = a) = 5, '同じ相手との6試合目は数えない');
 
@@ -95,7 +95,40 @@ begin
   perform pg_temp.as_user(b); perform public.delete_my_account();
   perform pg_temp.check(not exists (select 1 from public.profiles where id = b), '削除で成績が消える');
   perform pg_temp.check(not exists (select 1 from public.ranking() where name = 'ブルー'), '削除でランキングから消える');
-  perform pg_temp.check(exists (select 1 from public.rated_matches rm where rm.room = 'Rtest1' and rm.b is null), '相手の記録は残る（id は消える）');
+  perform pg_temp.check(exists (select 1 from public.rated_matches rm where rm.room = 'RTSTAAAA2' and (rm.a is null or rm.b is null)), '相手の記録は残る（id は消える）');
+end $$;
+
+-- 見直しで見つかった穴への対策
+do $$
+declare e uuid; f uuid; g uuid; h uuid; i int;
+begin
+  e := pg_temp.mk('イー'); f := pg_temp.mk('エフ'); g := pg_temp.mk('ジー'); h := pg_temp.mk('エイチ');
+  -- ランダム対戦の部屋名の形でなければ受け付けない（でっち上げの部屋を防ぐ）
+  perform pg_temp.start2(e, f, 'Rbad');
+  perform pg_temp.check(not exists (select 1 from public.match_starts where room = 'Rbad'), '部屋名の形が違えば始められない');
+  -- 自分が始めていない試合の報告は保存しない（ゴミの記録を防ぐ）
+  perform pg_temp.rep(e, f, 'RNSTARTA2', 'win');
+  perform pg_temp.check(not exists (select 1 from public.match_reports where room = 'RNSTARTA2'), '始めていない試合の報告は残らない');
+  -- 報告が食い違うと2人とも「もめごと」が増え、もめごとの多い人はレートの対象外
+  for i in 2..4 loop
+    perform pg_temp.start2(e, f, 'RDSPAAAA' || i);
+    perform pg_temp.rep(e, f, 'RDSPAAAA' || i, 'win'); perform pg_temp.rep(f, e, 'RDSPAAAA' || i, 'win');
+  end loop;
+  perform pg_temp.check((select disputes from public.profiles where id = e) = 3, 'もめごとが数えられる');
+  perform pg_temp.start2(e, g, 'RDSPAAAA5');
+  perform pg_temp.rep(e, g, 'RDSPAAAA5', 'win'); perform pg_temp.rep(g, e, 'RDSPAAAA5', 'loss');
+  perform pg_temp.check(pg_temp.r(e) = 1500 and pg_temp.r(g) = 1500, 'もめごとの多い人との試合は動かない');
+  -- 同時に届いて締め損ねた試合も、あとで締める
+  perform pg_temp.start2(g, h, 'RRACEAAA2');
+  insert into public.match_reports (room, gen, player, opponent, result, created_at) values
+    ('RRACEAAA2', 0, g, h, 'win', now() - interval '11 minutes'), ('RRACEAAA2', 0, h, g, 'loss', now() - interval '11 minutes');
+  perform public.finalize_stale();
+  perform pg_temp.check(pg_temp.r(g) = 1520 and pg_temp.r(h) = 1480, '締め損ねた試合も締める');
+  -- 試合を始める回数は1時間60回まで
+  for i in 1..61 loop
+    perform pg_temp.as_user(h); perform public.start_match('RLMTAAA' || substr('ABCDEFGHJKLMNPQRSTUVWXYZ', i / 24 + 1, 1) || substr('ABCDEFGHJKLMNPQRSTUVWXYZ', i % 24 + 1, 1), 0, g);
+  end loop;
+  perform pg_temp.check((select count(*) from public.match_starts where player = h) = 60, '始める回数の上限（この人の全部で1時間60回）');
 end $$;
 
 -- 表には直接書けない（RLS）
@@ -111,6 +144,11 @@ begin
   begin
     update public.profiles set rating = 9999;
     if exists (select 1 from public.profiles where rating = 9999) then raise exception 'FAIL: レートを書き換えられた'; end if;
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform 1 from public.profiles limit 1;
+    raise exception 'FAIL: 成績の表を直接読めた（id や登録日時まで見える）';
   exception when insufficient_privilege then null;
   end;
   begin

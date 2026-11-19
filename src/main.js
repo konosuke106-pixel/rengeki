@@ -11,7 +11,7 @@ import { unlockAudio, playSound, isMuted, setMuted } from './audio.js';
 import { RollbackSession } from './rollback.js';
 import { OnlineLink, makeRoomCode, normalizeRoomCode, onlineAvailable, createTransport, NET_VERSION } from './net.js';
 import { Matchmaker } from './lobby.js';
-import { account, onAccount, initAccount, signInGoogle, signOut, deleteAccount, saveName, validName, rankedMatchInfo, matchResultFor, rankedUid, reportStart, reportResult, loadRanking } from './account.js';
+import { account, onAccount, initAccount, signInGoogle, signOut, deleteAccount, saveName, validName, rankedMatchInfo, matchResultFor, rankedUid, reportStart, reportResult, loadRanking, abnormalEndResult } from './account.js';
 import { T, TX, LANGS, getLang, setLang, onLangChange, applyDom } from './i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -410,7 +410,7 @@ function netFrame(now) {
     showResult(sess.state);
   }
   if (sess.desync && !net.ended) endOnline(T('通信の食い違いが起きました。もう一度部屋を作ってね'));
-  else if (sess.silentFor(performance.now()) > NET_TIMEOUT_MS && !net.ended) endOnline(T('相手との通信が切れました'), true);
+  else if (sess.silentFor(performance.now()) > NET_TIMEOUT_MS && !net.ended) endOnline(T('相手との通信が切れました'));
 }
 
 function netNote() {
@@ -808,7 +808,7 @@ function netMessage(m) {
       }
       break;
     case 'bye':
-      if (!net.ended) endOnline(T('相手が部屋を出ました'), true);
+      if (!net.ended) endOnline(T('相手が部屋を出ました'));
       break;
     default:
       break;
@@ -833,12 +833,14 @@ function maybeRematch() {
   startNetMatch({ p1: app.picks[0], p2: app.picks[1], g: net.generation, delay: net.delay || NET_DELAY });
 }
 
-function endOnline(text, peerLeft = false) {
+function endOnline(text) {
   const net = app.net;
-  // 試合の途中で相手がいなくなったら「相手が切れた」と届ける（逃げた側の負けになる）
-  if (peerLeft && net.ranked && net.session && net.reportedGen !== net.generation) {
+  // 試合の途中で終わったら（相手が切れた・食い違い）「相手が切れた」と届ける。逃げた側の負けになり、
+  // 相手がでっち上げの勝ちを届けても食い違いになってレートは動かない
+  const dc = abnormalEndResult({ ranked: net.ranked, inMatch: !!net.session && !app.resultShown, reportedGen: net.reportedGen, generation: net.generation });
+  if (dc) {
     net.reportedGen = net.generation;
-    reportResult(net.room, net.generation, net.ranked.oppId, 'dc');
+    reportResult(net.room, net.generation, net.ranked.oppId, dc);
   }
   net.ended = true;
   net.session = null;

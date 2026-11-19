@@ -55,3 +55,18 @@ test('試合の結果を自分から見た勝ち・負け・引き分けにす�
   assert.equal(matchResultFor({ matchWinner: 1 }, 1), 'win');
   assert.equal(matchResultFor({ matchWinner: -1 }, 0), 'draw');
 });
+
+import { abnormalEndResult } from '../src/account.js';
+import { makeRoomCode } from '../src/net.js';
+
+test('試合の途中で異常に終わったら（切断・食い違い）「相手が切れた」と届ける。結果を届けた後や、レートなしの試合は何もしない', () => {
+  const base = { ranked: { oppId: 'b' }, inMatch: true, reportedGen: -1, generation: 0 };
+  assert.equal(abnormalEndResult(base), 'dc');
+  assert.equal(abnormalEndResult({ ...base, ranked: null }), null);
+  assert.equal(abnormalEndResult({ ...base, inMatch: false }), null);
+  assert.equal(abnormalEndResult({ ...base, reportedGen: 0 }), null);
+});
+
+test('ランダム対戦の部屋名は、サーバーが受け付ける形（R＋8文字）になっている', () => {
+  for (let i = 0; i < 200; i++) assert.match(`R${makeRoomCode()}${makeRoomCode()}`, /^R[2-9A-HJ-NP-Z]{8}$/);
+});
