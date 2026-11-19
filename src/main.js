@@ -9,7 +9,8 @@ import { POSES } from './poses.js';
 import { GROUND_Y, VIEW_W, VIEW_H, MAX_VIEW_W, BTN } from './config.js';
 import { unlockAudio, playSound, isMuted, setMuted } from './audio.js';
 import { RollbackSession } from './rollback.js';
-import { OnlineLink, makeRoomCode, normalizeRoomCode, onlineAvailable } from './net.js';
+import { OnlineLink, makeRoomCode, normalizeRoomCode, onlineAvailable, createTransport, NET_VERSION } from './net.js';
+import { Matchmaker } from './lobby.js';
 import { T, TX, LANGS, getLang, setLang, onLangChange, applyDom } from './i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -43,6 +44,8 @@ const app = {
 const myIdx = () => (app.net && app.net.session && !app.net.host ? 1 : 0);
 
 const NET_DELAY = 2;
+const RANDOM_WAIT_MS = 30000;      // ランダム対戦で相手を探す長さ。過ぎたらCPU戦へ
+const RANDOM_ROOM_WAIT_MS = 8000;  // 組になったのに部屋で会えない時は、探し直す
 const NET_TIMEOUT_MS = 8000;
 
 function show(id) {
@@ -521,6 +524,85 @@ function togglePause(force) {
 
 /* ---------- オンライン ---------- */
 
+/* ---------- ランダム対戦 ---------- */
+
+function stopRandom() {
+  const r = app.random;
+  if (!r) return;
+  app.random = null;
+  clearInterval(r.timer);
+  clearTimeout(r.roomTimer);
+  if (r.mm) r.mm.close();
+}
+
+async function startRandom(until = performance.now() + RANDOM_WAIT_MS) {
+  stopRandom();
+  closeLink();
+  setOnlineError('');
+  $('#online-menu').hidden = true;
+  $('#online-wait').hidden = false;
+  $('#room-code').textContent = '';
+  $('#btn-room-copy').hidden = true;
+  $('#online-status').textContent = T('サーバーにつないでいます…');
+  const r = { until, mm: null, timer: 0, roomTimer: 0, room: null };
+  app.random = r;
+  // 待合室は版ごとに分ける（版が違う相手とは試合が食い違うため）
+  const transport = createTransport(`lobby-${NET_VERSION}`);
+  try {
+    await transport.open();
+  } catch (err) {
+    transport.close();
+    if (app.random === r) netFail(err.message);
+    return;
+  }
+  if (app.random !== r) {
+    transport.close();
+    return;
+  }
+  r.mm = new Matchmaker({
+    transport,
+    makeRoom: () => `R${makeRoomCode()}${makeRoomCode()}`,
+    onMatch: (room, host) => randomMatched(r, room, host),
+  });
+  const tick = () => {
+    if (app.random !== r || !r.mm) return;
+    const now = performance.now();
+    const left = Math.ceil((r.until - now) / 1000);
+    if (left <= 0) {
+      randomToCpu();
+      return;
+    }
+    $('#online-status').textContent = T('相手を探しています…（あと{n}秒）', { n: left });
+    r.mm.tick(now);
+  };
+  r.timer = setInterval(tick, 200);
+  tick();
+}
+
+function randomMatched(r, room, host) {
+  if (app.random !== r) return;
+  clearInterval(r.timer);
+  // 「決まり」を送り終えてから待合室を出る
+  const mm = r.mm;
+  r.mm = null;
+  setTimeout(() => mm.close(), 500);
+  enterRoom(room, host, true);
+  // enterRoom が古い接続を閉じても、探している記録は残す
+  app.random = r;
+  r.room = room;
+  r.roomTimer = setTimeout(() => {
+    if (app.random === r && app.net && !app.net.session && app.mode !== 'online') netFail('');
+  }, RANDOM_ROOM_WAIT_MS);
+}
+
+function randomToCpu() {
+  stopRandom();
+  closeLink();
+  $('#online').hidden = true;
+  openSelect('cpu');
+  $('#select-heading').textContent = T('相手が見つからなかったので、CPUと対戦します。あなたのキャラを選ぶ');
+}
+
 function setOnlineError(text) {
   const el = $('#online-error');
   el.textContent = text || '';
@@ -532,6 +614,7 @@ function openOnline() {
   $('#online-menu').hidden = false;
   $('#online-wait').hidden = true;
   $('#btn-room-create').disabled = !onlineAvailable();
+  $('#btn-random').disabled = !onlineAvailable();
   $('#btn-room-join').disabled = !onlineAvailable();
   $('#online').hidden = false;
 }
@@ -541,13 +624,13 @@ function closeLink() {
   app.net = null;
 }
 
-async function enterRoom(code, host) {
+async function enterRoom(code, host, random = false) {
   closeLink();
   setOnlineError('');
   $('#online-menu').hidden = true;
   $('#online-wait').hidden = false;
-  $('#room-code').textContent = code;
-  $('#btn-room-copy').hidden = !host;
+  $('#room-code').textContent = random ? '' : code;
+  $('#btn-room-copy').hidden = !host || random;
   $('#btn-room-copy').textContent = T('コードをコピー');
   $('#online-status').textContent = T('サーバーにつないでいます…');
   const link = new OnlineLink({
@@ -561,7 +644,8 @@ async function enterRoom(code, host) {
   try {
     await link.connect();
     if (app.net && app.net.link === link) {
-      $('#online-status').textContent = host ? T('このコードを相手に伝えてね。入ってくるのを待っています…') : T('部屋を探しています…');
+      if (random) $('#online-status').textContent = T('相手が見つかりました。つないでいます…');
+      else $('#online-status').textContent = host ? T('このコードを相手に伝えてね。入ってくるのを待っています…') : T('部屋を探しています…');
     }
   } catch (err) {
     netFail(err.message);
@@ -569,6 +653,15 @@ async function enterRoom(code, host) {
 }
 
 function netFail(text) {
+  // ランダム対戦で組んだ相手と部屋で会えなかった時は、残りの時間で探し直す
+  if (app.random && app.random.room) {
+    const until = app.random.until;
+    stopRandom();
+    closeLink();
+    startRandom(until);
+    return;
+  }
+  stopRandom();
   closeLink();
   $('#online-menu').hidden = false;
   $('#online-wait').hidden = true;
@@ -576,6 +669,7 @@ function netFail(text) {
 }
 
 function netPeerFound() {
+  stopRandom();
   $('#online').hidden = true;
   app.mode = 'online';
   app.picking = 0;
@@ -804,7 +898,9 @@ document.querySelectorAll('[data-level]').forEach((el) => {
   });
 });
 bind('#btn-online', () => openOnline());
+bind('#btn-random', () => startRandom());
 bind('#btn-online-close', () => {
+  stopRandom();
   closeLink();
   $('#online').hidden = true;
 });

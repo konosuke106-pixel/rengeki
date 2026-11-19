@@ -32,7 +32,7 @@
       <button class="mode" type="button" data-mode="cpu"><b data-i18n>CPU対戦</b><span data-i18n>3本勝負でコンピュータと戦う</span></button>
       <button class="mode" type="button" data-mode="versus"><b data-i18n>2人対戦</b><span data-i18n>1台のキーボードかゲームパッドで</span></button>
       <button class="mode" type="button" data-mode="training"><b data-i18n>練習</b><span data-i18n>操作ガイドつき。コンボも試せる</span></button>
-      <button class="mode" type="button" id="btn-online"><b data-i18n>オンライン対戦</b><span data-i18n>部屋コードで友だちと戦う</span></button>
+      <button class="mode" type="button" id="btn-online"><b data-i18n>オンライン対戦</b><span data-i18n>世界の誰かや、友だちと戦う</span></button>
       <div class="title-sub">
         <button class="chip" type="button" id="btn-howto" data-i18n>遊び方</button>
         <button class="chip" type="button" id="btn-sound">音：入</button>
@@ -137,6 +137,11 @@
     <div class="panel">
       <h2 data-i18n>オンライン対戦</h2>
       <div id="online-menu" class="online-grid">
+        <div class="online-col online-random">
+          <h3 data-i18n>ランダム対戦</h3>
+          <p data-i18n>同じ時間に探している誰かと戦う。見つからなければCPUと対戦。</p>
+          <button class="action" type="button" id="btn-random" data-i18n>相手を探す</button>
+        </div>
         <div class="online-col">
           <h3 data-i18n>部屋を作る</h3>
           <p data-i18n>コードが出るので、相手に伝えてね。</p>

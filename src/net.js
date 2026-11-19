@@ -3,6 +3,10 @@
 import { SUPABASE_URL, SUPABASE_KEY } from './online-config.js';
 import { T } from './i18n.js';
 
+// ゲームの版。ビルドがコードの中身から作った印に置き換える。版が違うと試合が食い違うので、
+// ランダム対戦では同じ版の人とだけ組になる（待合室を版ごとに分ける）
+export const NET_VERSION = 'dev';
+
 const SUPABASE_SCRIPT = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 const CODE_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
