@@ -12,19 +12,23 @@ export async function onRequestGet({ request, env }) {
   });
   // このサイトのページからの問い合わせだけに答える（他のサイトから合い鍵を取られにくくする）
   if (request.headers.get('Sec-Fetch-Site') !== 'same-origin') return json({ error: 'forbidden' }, 403);
-  if (!env.TURN_KEY_ID || !env.TURN_KEY_API_TOKEN) return json({ error: 'not configured' }, 503);
+  // 貼り付けた時に紛れ込んだ空白や改行は取り除く
+  const keyId = String(env.TURN_KEY_ID || '').trim();
+  const token = String(env.TURN_KEY_API_TOKEN || '').trim();
+  if (!keyId || !token) return json({ error: 'not configured' }, 503);
   let res;
   try {
-    res = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${env.TURN_KEY_ID}/credentials/generate-ice-servers`, {
+    res = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(keyId)}/credentials/generate-ice-servers`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${env.TURN_KEY_API_TOKEN}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ttl: ICE_TTL_SECONDS }),
     });
   } catch {
     return json({ error: 'upstream' }, 502);
   }
   // 失敗の番号だけ返す（原因を調べるため。鍵の中身は返さない）。401/403 は鍵の番号と暗号の取り違えや貼り間違いが多い
-  if (!res.ok) return json({ error: 'upstream', status: res.status }, 502);
+  // idLooksRight：鍵の番号が「英数字32文字」の形か（404 の時、番号と暗号の取り違えを見分ける手がかり）
+  if (!res.ok) return json({ error: 'upstream', status: res.status, idLooksRight: /^[0-9a-f]{32}$/i.test(keyId) }, 502);
   const data = await res.json();
   // ポート53の入口はブラウザでは使えず、つながるまで待たされるだけなので外す
   const iceServers = (data.iceServers || []).map((s) => {
