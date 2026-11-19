@@ -23,7 +23,8 @@ export async function onRequestGet({ request, env }) {
   } catch {
     return json({ error: 'upstream' }, 502);
   }
-  if (!res.ok) return json({ error: 'upstream' }, 502);
+  // 失敗の番号だけ返す（原因を調べるため。鍵の中身は返さない）。401/403 は鍵の番号と暗号の取り違えや貼り間違いが多い
+  if (!res.ok) return json({ error: 'upstream', status: res.status }, 502);
   const data = await res.json();
   // ポート53の入口はブラウザでは使えず、つながるまで待たされるだけなので外す
   const iceServers = (data.iceServers || []).map((s) => {
