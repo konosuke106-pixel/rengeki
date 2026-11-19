@@ -38,6 +38,7 @@
         <button class="chip" type="button" id="btn-sound">音：入</button>
         <button class="chip" type="button" id="btn-full">全画面</button>
         <button class="chip" type="button" id="btn-lang" aria-label="Language">日本語</button>
+        <button class="chip" type="button" id="btn-account">ログイン</button>
       </div>
     </nav>
   </section>
@@ -163,6 +164,31 @@
       </div>
       <p id="online-error" class="online-error" role="alert" hidden></p>
       <div class="panel-buttons"><button class="action sub" type="button" id="btn-online-close" data-i18n>戻る</button></div>
+    </div>
+  </div>
+
+  <div id="account" class="overlay" hidden>
+    <div class="panel account-panel">
+      <h2 data-i18n>アカウント</h2>
+      <div id="account-guest">
+        <p data-i18n>Google でログインすると、オンラインのランダム対戦でレートが付き、ランキングに載ります。ログインしなくても全部遊べます。</p>
+        <button class="action" type="button" id="btn-login-google" data-i18n>Google でログイン</button>
+      </div>
+      <div id="account-user" hidden>
+        <label for="name-input" data-i18n>ランキングに出す名前（2〜12文字）</label>
+        <div class="room-join">
+          <input id="name-input" type="text" maxlength="12" autocomplete="off" spellcheck="false">
+          <button class="action" type="button" id="btn-name-save" data-i18n>保存</button>
+        </div>
+        <p id="account-stats" role="status"></p>
+        <div class="account-actions">
+          <button class="chip" type="button" id="btn-logout" data-i18n>ログアウト</button>
+          <button class="chip danger" type="button" id="btn-delete-account">アカウントを削除</button>
+        </div>
+      </div>
+      <p id="account-msg" class="account-msg" role="alert" hidden></p>
+      <p class="account-privacy"><a href="privacy.html" target="_blank" rel="noopener" data-i18n>プライバシー</a></p>
+      <div class="panel-buttons"><button class="action sub" type="button" id="btn-account-close" data-i18n>戻る</button></div>
     </div>
   </div>
 

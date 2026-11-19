@@ -56,5 +56,5 @@ ${body}
 <script src="game.js"></script>
 </body></html>
 `);
-for (const file of ['_headers', 'manifest.webmanifest','icon-180.png', 'icon-192.png', 'icon-512.png']) copyFileSync(root + file, root + 'dist/' + file);
+for (const file of ['_headers', 'privacy.html', 'privacy.css', 'manifest.webmanifest','icon-180.png', 'icon-192.png', 'icon-512.png']) copyFileSync(root + file, root + 'dist/' + file);
 console.log(`dist/rengeki.html ${(out.length / 1024).toFixed(0)} KB`);

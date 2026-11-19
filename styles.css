@@ -262,3 +262,14 @@ kbd { font-family: inherit; font-weight: 700; color: var(--gold); }
 @media (orientation: portrait) and (pointer: coarse) {
   body:not(.rotate-skip) #rotate { display: flex; }
 }
+
+/* アカウント */
+.account-panel p { margin: 0 0 1.4vh; }
+.account-panel label { display: block; margin-bottom: .6vh; font-weight: 700; }
+.account-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 1vh; }
+.chip.danger { border-color: #c0392b; color: #ff8a7a; }
+.chip.danger.armed { background: #c0392b; color: #fff; }
+.account-msg { margin: 1vh 0 0; font-weight: 700; color: #f6c445; }
+.account-msg[hidden] { display: none; }
+.account-privacy { margin: 1.4vh 0 0; font-size: .9em; }
+.account-privacy a { color: inherit; opacity: .8; }

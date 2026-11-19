@@ -11,6 +11,7 @@ import { unlockAudio, playSound, isMuted, setMuted } from './audio.js';
 import { RollbackSession } from './rollback.js';
 import { OnlineLink, makeRoomCode, normalizeRoomCode, onlineAvailable, createTransport, NET_VERSION } from './net.js';
 import { Matchmaker } from './lobby.js';
+import { account, onAccount, initAccount, signInGoogle, signOut, deleteAccount, saveName, validName } from './account.js';
 import { T, TX, LANGS, getLang, setLang, onLangChange, applyDom } from './i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -1019,8 +1020,95 @@ function refreshLang() {
   if (app.mode) updateSelectHeading();
   syncStageText();
   $('#btn-room-copy').textContent = T('コードをコピー');
+  syncAccountButton();
+  if (!$('#account').hidden) fillAccount();
 }
 onLangChange(refreshLang);
+
+/* ---------- アカウント ---------- */
+
+function syncAccountButton() {
+  const { user, profile } = account();
+  $('#btn-account').textContent = !user ? T('ログイン') : profile ? profile.name : T('名前を決める');
+}
+
+function accountMsg(text) {
+  $('#account-msg').textContent = text || '';
+  $('#account-msg').hidden = !text;
+}
+
+function fillAccount() {
+  const { user, profile } = account();
+  $('#account-guest').hidden = !!user;
+  $('#account-user').hidden = !user;
+  $('#btn-login-google').disabled = !onlineAvailable();
+  if (user) {
+    if (document.activeElement !== $('#name-input')) $('#name-input').value = profile ? profile.name : '';
+    $('#account-stats').textContent = profile
+      ? T('レート {rating}・{wins}勝 / {games}試合', { rating: profile.rating, wins: profile.wins, games: profile.games })
+      : T('まずランキングに出す名前を決めてね');
+  }
+  const del = $('#btn-delete-account');
+  del.classList.remove('armed');
+  del.textContent = T('アカウントを削除');
+}
+
+function openAccount() {
+  accountMsg('');
+  fillAccount();
+  $('#account').hidden = false;
+}
+
+onAccount(() => {
+  syncAccountButton();
+  if (!$('#account').hidden) fillAccount();
+});
+bind('#btn-account', () => openAccount());
+bind('#btn-account-close', () => { $('#account').hidden = true; });
+bind('#btn-login-google', async () => {
+  accountMsg(T('Google のページへ移動します…'));
+  try {
+    await signInGoogle();
+  } catch {
+    accountMsg(T('ログインできませんでした。時間をおいてもう一度試してね'));
+  }
+});
+bind('#btn-name-save', async () => {
+  const name = validName($('#name-input').value);
+  if (!name) {
+    accountMsg(T('名前は2〜12文字にしてね'));
+    return;
+  }
+  try {
+    await saveName(name);
+    accountMsg(T('保存しました'));
+  } catch {
+    accountMsg(T('保存できませんでした。時間をおいてもう一度試してね'));
+  }
+});
+$('#name-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('#btn-name-save').click();
+});
+bind('#btn-logout', async () => {
+  await signOut();
+  accountMsg(T('ログアウトしました'));
+});
+bind('#btn-delete-account', async () => {
+  const del = $('#btn-delete-account');
+  // うっかり消さないよう、2回押して削除（ブラウザの確認の窓は使わない）
+  if (!del.classList.contains('armed')) {
+    del.classList.add('armed');
+    del.textContent = T('もう一度押すと削除（元に戻せません）');
+    return;
+  }
+  try {
+    await deleteAccount();
+    accountMsg(T('アカウントを削除しました'));
+  } catch {
+    fillAccount();
+    accountMsg(T('削除できませんでした。時間をおいてもう一度試してね'));
+  }
+});
 
 $('#dummy-mode').addEventListener('change', (e) => { app.dummy = e.target.value; e.target.blur(); });
 $('#show-hitbox').addEventListener('change', (e) => { app.hitboxes = e.target.checked; e.target.blur(); });
@@ -1163,6 +1251,12 @@ function titleLoop() {
 
 refreshLang();
 show('#screen-title');
+// ログインの記録がある時だけ通信の部品を読み込む。初めてログインした人には名前を決めてもらう
+initAccount().then(() => {
+  syncAccountButton();
+  const { user, profile } = account();
+  if (user && !profile) openAccount();
+});
 requestAnimationFrame(titleLoop);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(buildSelect);
 

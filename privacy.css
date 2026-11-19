@@ -1,0 +1,10 @@
+/* プライバシーのページ（privacy.html）の見た目 */
+:root { color-scheme: dark; }
+body { margin: 0; background: #15101c; color: #f3ead8; font: 16px/1.75 "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; margin: 1.2em 0 .4em; }
+h2 { font-size: 1.15rem; margin: 1.6em 0 .3em; color: #f6c445; }
+a { color: #ffb38a; }
+hr { border: 0; border-top: 1px solid rgba(255, 255, 255, .18); margin: 48px 0 0; }
+.back { margin: 0; }
+li { margin: .3em 0; }

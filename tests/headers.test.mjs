@@ -33,3 +33,13 @@ test('HTML にページ内のスクリプトや style 属性を書いていな�
   assert.ok(!/\sstyle\s*=/.test(html), 'style 属性');
   assert.ok(!/<script(?![^>]*\ssrc=)/.test(html), 'src のない script');
 });
+
+test('プライバシーのページ：スクリプトを持たず、ビルドで公開先にコピーされる', () => {
+  const html = readFileSync(new URL('privacy.html', root), 'utf8');
+  assert.ok(!/<script/i.test(html), 'スクリプトを書かない');
+  assert.ok(!/\sstyle\s*=/.test(html) && !/\son\w+\s*=/.test(html), 'style や onclick の属性を書かない');
+  assert.match(html, /<html lang="ja">/);
+  assert.match(html, /Privacy/);
+  const build = readFileSync(new URL('tools/build.mjs', root), 'utf8');
+  assert.match(build, /'privacy\.html'/);
+});
