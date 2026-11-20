@@ -66,6 +66,9 @@
 - レートとランキング（2026-11-19）：Google ログイン（Supabase Auth、PKCE、ログアウトするまでログインしたまま）。ゲストは supabase-js を読み込まず今まで通り遊べる。初回ログインで表示名（2〜12文字）を決める。タイトルの小さいボタンに「ランキング」「ログイン（名前）」。部品は `src/account.js`、画面は `main.js` の「ランキング」「アカウント」。プライバシーのページ `privacy.html`（日本語・英語、`privacy.css`、ビルドで dist にコピー）
   - レートはランダム対戦で2人ともログイン＋名前ありの時だけ（ログインの id は `pick` の知らせに載せて交換）。Elo：初期1500、20試合までK=40、その後K=24、最低100。結果画面に「レート +16（1516）」
   - 計算と記録はすべてサーバー（`supabase/migrations/20261119_ranking*.sql`）。表は直接読み書きできず、関数（`set_name` `my_profile` `start_match` `report_match` `ranking` `my_rank` `delete_my_account`）だけ。2人とも「始めた」を届けた試合で、報告が一致したら動かす。片方だけなら10分後に採用（`finalize_stale` を pg_cron が5分ごと）。途中で切れた・食い違った時は「相手が切れた（dc）」を届ける。部屋名は `R`＋8文字の形だけ受け付ける。同じ相手は1日5回まで。報告が食い違うと2人とも `disputes`＋1、3回以上かつ試合数の2割を超える人はレート対象外。始めるのは1時間60回まで
+  - Google ログインの設定（2026-11-21 完了、本人が本番でログインと名前の保存を確認済み）：Google Cloud のプロジェクト `rengeki`（ID `rengeki-515314`）の Google Auth Platform。アプリ名「連撃 RENGEKI」、外部・本番環境（公開済み）、承認済みドメインは `rengeki.pages.dev` と `pneboddgrvktehjslplg.supabase.co`、ホームページとプライバシーのページを登録、ロゴはなし（入れると Google の審査が要る）。OAuth クライアントは `rengeki web`（生成元 `https://rengeki.pages.dev`、リダイレクトは Supabase の `/auth/v1/callback`）。その ID と秘密は Supabase の Authentication → Sign In / Providers → Google に本人が入れた（チャットやリポジトリには書かない）。Supabase の URL Configuration は Site URL `https://rengeki.pages.dev`、Redirect URLs `https://rengeki.pages.dev/**` と `http://localhost:5180/**`
+  - 問い合わせ先は個人の Gmail を出さないため Google グループ `rengeki-support@googlegroups.com`（本人の Gmail に届く。誰でも送れて、読めるのはメンバーだけ）。Google の同意画面のサポートメールと連絡先もこれ
+  - Supabase のダッシュボードは「メールとパスワード」で入る方のアカウント（組織 `starboy`）。GitHub で入る `konosuke106-pixel` の方には rengeki がない
   - サーバーのテストは `supabase/tests/ranking.sql`（Supabase で流す。最後に rollback。`ALL OK` で合格）
 - 強さの調整（2026-11-19）：`node tools/balance.mjs [1組の試合数]` で全キャラ総当たり（CPU「つよい」どうし・闘技場・ギミックなし）の勝率を出せる。人の遊び方とは違う目安。調整前はクサリ25%・マボロシ34%・カブト35%・ツバサ39%・ユミ42%と弱く、カゲ80%・コガラシ77%・オニ73%が強すぎた。後から足したキャラの通常技の威力と必殺の威力を上げ、カゲ（影返しの受付22→16コマ・反撃120→100・朧月の無敵30→14コマ）、コガラシ（罠の固まり56→44・氷牢230→200・通常技の威力）、オニ（怒り最大1.5→1.35倍・威力）と3人の体力を下げた。調整後は後から足したキャラが44〜52%（カガリ・ライは50%）、カゲ71%・コガラシ70%・オニ62%、ゴウテツ36%・シズク35%
 - X（SNS）用の画像（2026-11-19）：`promo/x-profile.png`（400x400、丸く切り抜かれても大事な所が残る）と `promo/x-header.png`（1500x500、16人整列）。元絵は `tools/sns.html?kind=profile|header`（`&round` で丸く切った見え方）、`pwsh tools/make-sns.ps1` で作り直せる（`-Round` で確認用も）。日本語の字体は字ごとに分けて配られるので、canvas では `document.fonts.load(…, '連撃')` のように使う字を指定して読み込む
@@ -85,7 +88,7 @@
 - 別々の回線どうし（特にスマホ回線）での対戦は未確認。直結できないと中継になり遅くなる。TURN（Cloudflare）を入れたので、直結できない時も多くは TURN 経由でつながる見込み（実際の別回線では未確認）
 - 中継の試合は1試合で毎秒約60件使うので、無料枠（毎秒100件）では同時に1試合まで。月の枠では中継の試合が合計約9時間分
 - 部屋コードと通信はログイン不要なので、広く配る前に乱用対策を入れる
-- Google ログインは本人の設定待ち（Google Cloud の OAuth 同意画面とクライアント、Supabase の Authentication → Providers → Google と URL Configuration）。設定後に本番でログイン→名前→2画面のランダム対戦→レート→ランキングを確かめる
+- レートが本当に動くか（2つの Google アカウントでランダム対戦→結果画面のレート→ランキング）は本番でまだ試していない
 - レートのズル対策の限界：2つの本物のアカウントで示し合わせると、1日5勝までは稼げる（防ぐにはサーバー側で組み合わせを決める必要がある）
 - Supabase の無料プランは、1週間データベースへの問い合わせが少ないと止まる（オンライン対戦の通信は数えられない。止まると全部「サーバーに接続できませんでした」）。2026-11-19 に止まっていたので再開し、毎日起こす仕組みを入れた：DB に1を返すだけの関数 `public.keepalive()`（データなし）、`tools/keepalive.mjs` がそれを呼び、`.github/workflows/keepalive.yml` が毎日12:17（日本時間）に動かす。失敗すると GitHub からメール。公開リポジトリの定期実行は、リポジトリに60日動きがないと GitHub が止める
 - ランダム対戦は待合室で声をかけ合う方式（案A）。人が大勢になったらデータベースの順番待ち（案B）に移す。相手の地域や回線の近さは見ていない。部屋コードの対戦は版の違いを確かめていない
