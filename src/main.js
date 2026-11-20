@@ -1102,7 +1102,8 @@ async function openRanking() {
     const tr = document.createElement('tr');
     if (profile && data.myRank === r.rank && profile.name === r.name) tr.className = 'me';
     // 名前は人が決めた文字なので、必ず文字として入れる
-    [r.rank, r.name, r.rating, `${r.wins} / ${r.games}`].forEach((c) => {
+    // BOT は人と間違えないよう必ず印を付ける（試合数は数えないので「—」）
+    [r.rank, r.is_bot ? `BOT ${r.name}` : r.name, r.rating, r.is_bot ? '—' : `${r.wins} / ${r.games}`].forEach((c) => {
       const td = document.createElement('td');
       td.textContent = String(c);
       tr.append(td);
