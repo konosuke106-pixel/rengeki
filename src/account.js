@@ -169,3 +169,47 @@ export const rankedUid = () => (rankedReady() ? acctState.user.id : null);
 export function abnormalEndResult({ ranked, inMatch, reportedGen, generation }) {
   return ranked && inMatch && reportedGen !== generation ? 'dc' : null;
 }
+
+/* ---------- ランクマッチの BOT ---------- */
+
+// ログインしていない人の BOT：レートが一番近い1体（同じ近さなら弱い方）。レートは動かない
+export function pickGuestBot(bots, rating = 1500) {
+  let best = null;
+  for (const b of bots || []) {
+    const d = Math.abs(b.rating - rating);
+    if (!best || d < best.d || (d === best.d && b.rating < best.bot.rating)) best = { bot: b, d };
+  }
+  return best ? best.bot : null;
+}
+
+// BOT の一覧（誰でも読める）。キャラは char にそろえる
+export async function listBots() {
+  const { data, error } = await rpcCall('list_bots');
+  if (error || !data) return [];
+  return data.map((b) => ({ id: b.id, name: b.name, char: b.fighter, level: b.level, rating: b.rating }));
+}
+
+const callBotFn = async (fn, body) => {
+  const client = await ensureClient();
+  return client.functions.invoke('bot-match', { body });
+};
+
+// BOT 戦を始める（ログイン＋名前ありの人だけ）。{ ranked, match_id, seed, bot, version } を返す。だめなら null
+export async function startBotMatch(version) {
+  if (!rankedReady()) return null;
+  try {
+    const { data, error } = await callBotFn('bot-match', { action: 'start', version });
+    return error ? null : data;
+  } catch {
+    return null;
+  }
+}
+
+// 結果をサーバーに送る。サーバーが記録から試合を再生して決めたレートの変化を返す（送れなければ null）
+export async function finishBotMatch({ matchId, version, playerChar, inputs }) {
+  const out = await callWithRetry(callBotFn, 'bot-match', { action: 'finish', match_id: matchId, version, playerChar, inputs });
+  if (out && typeof out.rating === 'number' && acctState.profile) {
+    setAccount({ profile: { ...acctState.profile, rating: out.rating } });
+  }
+  return out;
+}

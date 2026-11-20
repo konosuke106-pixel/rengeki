@@ -403,4 +403,8 @@ export const TEXT_ES = {
   "ログインすると、ランクマッチの結果でランキングに載ります": "Inicia sesión para entrar en la clasificación con las partidas clasificatorias",
   "ランクマッチで1試合すると載ります": "Juega una partida clasificatoria para aparecer aquí",
   "あなたは {rank}位（レート {rating}）": "Estás en el puesto {rank} (puntuación {rating})",
+  "BOT を探しています…": "Buscando un BOT…",
+  "BOT {name}（レート {rating}）と対戦。あなたのキャラを選ぶ": "Contra el BOT {name} (puntuación {rating}). Elige tu luchador",
+  "もう一度探す": "Buscar otra vez",
+  "ゲームの更新中のため、今回はレートが動きません": "El juego se está actualizando: esta vez tu puntuación no cambiará",
 };

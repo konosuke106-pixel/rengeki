@@ -11,7 +11,8 @@ import { unlockAudio, playSound, isMuted, setMuted } from './audio.js';
 import { RollbackSession } from './rollback.js';
 import { OnlineLink, makeRoomCode, normalizeRoomCode, onlineAvailable, createTransport, NET_VERSION } from './net.js';
 import { Matchmaker } from './lobby.js';
-import { account, onAccount, initAccount, signInGoogle, signOut, deleteAccount, saveName, validName, rankedMatchInfo, matchResultFor, rankedUid, reportStart, reportResult, loadRanking, abnormalEndResult } from './account.js';
+import { botMatchState, encodeInputs } from './replay.js';
+import { account, onAccount, initAccount, signInGoogle, signOut, deleteAccount, saveName, validName, rankedMatchInfo, matchResultFor, rankedUid, reportStart, reportResult, loadRanking, abnormalEndResult, startBotMatch, finishBotMatch, listBots, pickGuestBot } from './account.js';
 import { T, TX, LANGS, getLang, setLang, onLangChange, applyDom } from './i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -48,7 +49,7 @@ const NET_DELAY = 2;
 // 中継（Supabase 経由）のときは通信の節約のため入力を4コマ分まとめて送る。その分、入力の遅らせを増やして巻き戻しを抑える
 const RELAY_SEND_EVERY = 4;
 const NET_DELAY_RELAY = 4;
-const RANDOM_WAIT_MS = 30000;      // ランダム対戦で相手を探す長さ。過ぎたらCPU戦へ
+const RANDOM_WAIT_MS = 10000;      // ランクマッチで人を探す長さ。過ぎたら BOT 戦へ
 const RANDOM_ROOM_WAIT_MS = 8000;  // 組になったのに部屋で会えない時は、探し直す
 const NET_TIMEOUT_MS = 8000;
 
@@ -122,7 +123,12 @@ function updateSelectHeading() {
     training: [TX('練習するキャラを選ぶ'), TX('練習相手を選ぶ')],
     online: [TX('自分のキャラを選ぶ'), TX('相手の準備を待っています')],
   };
-  $('#select-heading').textContent = T(labels[app.mode][app.picking]);
+  if (app.mode === 'bot') {
+    const b = app.bot.bot;
+    $('#select-heading').textContent = T('BOT {name}（レート {rating}）と対戦。あなたのキャラを選ぶ', { name: b.name, rating: b.rating });
+  } else {
+    $('#select-heading').textContent = T(labels[app.mode][app.picking]);
+  }
   $('#cpu-level').hidden = app.mode !== 'cpu';
   document.querySelectorAll('.char-card').forEach((el) => {
     el.classList.toggle('picked', app.picking === 1 && el.dataset.char === app.picks[0]);
@@ -142,6 +148,12 @@ function pickChar(id) {
   playSound('ui');
   if (app.mode === 'online') {
     netPick(id);
+    return;
+  }
+  if (app.mode === 'bot') {
+    // BOT 戦はキャラは自分だけ選ぶ。ステージは BOT のキャラのステージ（ギミックあり）
+    app.picks = [id, app.bot.bot.char];
+    startMatch();
     return;
   }
   app.picks[app.picking] = id;
@@ -224,6 +236,10 @@ function syncStageText() {
 
 function buildControllers() {
   const seed = (Date.now() & 0xffff) + 1;
+  if (app.mode === 'bot') {
+    const cpu = createCpu(app.bot.bot.level, app.bot.seed);
+    return [() => input.read(0, true), (s) => cpu(s, 1)];
+  }
   if (app.mode === 'cpu') {
     const cpu = createCpu(app.level, seed);
     return [() => input.read(0, true), (s) => cpu(s, 1)];
@@ -236,8 +252,11 @@ function buildControllers() {
 
 function startMatch() {
   const [p1, p2] = app.picks;
-  const stage = app.stage || CHARS[p2].stage;
-  app.match = createMatch({ p1, p2, training: app.mode === 'training', stage, gimmicks: app.gimmicks });
+  const stage = app.mode === 'bot' ? CHARS[p2].stage : app.stage || CHARS[p2].stage;
+  app.match = app.mode === 'bot'
+    ? botMatchState(p1, app.bot.bot)
+    : createMatch({ p1, p2, training: app.mode === 'training', stage, gimmicks: app.gimmicks });
+  if (app.mode === 'bot') app.bot.log = [];
   app.controllers = buildControllers();
   renderer.reset();
   renderer.setStage(stage);
@@ -444,6 +463,8 @@ function runFrame(now) {
     let safety = 0;
     while (app.acc >= stepMs && safety++ < 5) {
       const inputs = [app.controllers[0](s), app.controllers[1](s)];
+      // BOT 戦は自分の入力を毎コマ記録する（サーバーが同じ試合を再生して勝ち負けを決める）
+      if (app.mode === 'bot') app.bot.log.push(inputs[0]);
       step(s, inputs);
       if (app.guide) guideTick(s);
       renderer.consume(s.events, s);
@@ -508,7 +529,7 @@ function showResult(s) {
     title.textContent = T('引き分け');
   } else {
     const ch = CHARS[s.ps[win].char];
-    if (app.mode === 'cpu') title.textContent = win === 0 ? T('勝利！') : T('敗北…');
+    if (app.mode === 'cpu' || app.mode === 'bot') title.textContent = win === 0 ? T('勝利！') : T('敗北…');
     else if (app.mode === 'online') title.textContent = win === (app.net.host ? 0 : 1) ? T('勝利！') : T('敗北…');
     else title.textContent = T('{n}P {name} の勝ち', { n: win + 1, name: T(ch.name) });
   }
@@ -534,9 +555,29 @@ function showResult(s) {
   $('#result').hidden = false;
   $('#btn-rematch').hidden = false;
   $('#btn-rematch').disabled = false;
-  $('#btn-rematch').textContent = T('もう一戦');
-  $('#btn-reselect').hidden = app.mode === 'online';
+  $('#btn-rematch').textContent = app.mode === 'bot' ? T('もう一度探す') : T('もう一戦');
+  $('#btn-reselect').hidden = app.mode === 'online' || app.mode === 'bot';
   $('#btn-rematch').focus();
+  if (app.mode === 'bot') reportBotResult(s);
+}
+
+// BOT 戦の結果：レートが動く試合なら記録を送り、サーバーが再生して決めたレートの変化を出す
+async function reportBotResult(s) {
+  const b = app.bot;
+  const el = $('#result-rating');
+  if (b.updating) {
+    el.hidden = false;
+    el.textContent = T('ゲームの更新中のため、今回はレートが動きません');
+  }
+  if (!b.matchId || b.sent) return;
+  b.sent = true;
+  el.hidden = false;
+  el.textContent = T('レートを集計中…');
+  const out = await finishBotMatch({ matchId: b.matchId, version: NET_VERSION, playerChar: s.ps[0].char, inputs: encodeInputs(b.log) });
+  if (app.bot !== b) return;
+  if (out && out.result === 'void') el.textContent = T('ゲームの更新中のため、今回はレートが動きません');
+  else if (out && typeof out.delta === 'number') el.textContent = T('レート {delta}（{rating}）', { delta: (out.delta >= 0 ? '+' : '') + out.delta, rating: out.rating });
+  else el.textContent = T('レートは少しあとで反映されます');
 }
 
 function togglePause(force) {
@@ -545,7 +586,7 @@ function togglePause(force) {
   $('#pause').hidden = !app.paused;
   input.releaseAll();
   // オンラインでは止められない。メニューを開いている間も試合は進む
-  $('#btn-retry').hidden = app.mode === 'online';
+  $('#btn-retry').hidden = app.mode === 'online' || app.mode === 'bot';
   $('#pause h2').textContent = app.mode === 'online' ? T('試合は続いています') : T('一時停止');
   if (app.paused) fillMoveList();
   app.last = performance.now();
@@ -598,7 +639,7 @@ async function startRandom(until = performance.now() + RANDOM_WAIT_MS) {
     const now = performance.now();
     const left = Math.ceil((r.until - now) / 1000);
     if (left <= 0) {
-      randomToCpu();
+      randomToBot();
       return;
     }
     $('#online-status').textContent = T('相手を探しています…（あと{n}秒）', { n: left });
@@ -624,12 +665,33 @@ function randomMatched(r, room, host) {
   }, RANDOM_ROOM_WAIT_MS);
 }
 
-function randomToCpu() {
+// 人が見つからなかったら BOT と対戦する。ログイン＋名前ありならサーバーが BOT と種を決め（レートが動く）、
+// それ以外は BOT の一覧からレートの近い1体と手元の種（レートなし）。BOT も取れなければ今まで通りの CPU 戦
+async function randomToBot() {
   stopRandom();
   closeLink();
+  $('#online-status').textContent = T('BOT を探しています…');
+  let info = null;
+  if (rankedUid()) info = await startBotMatch(NET_VERSION);
+  let bot = null;
+  let seed = 1;
+  let matchId = null;
+  if (info && info.ranked && info.bot) {
+    ({ bot, seed } = info);
+    matchId = info.match_id;
+  } else {
+    bot = pickGuestBot(await listBots().catch(() => []), (account().profile && account().profile.rating) || 1500);
+    seed = (Date.now() % 2147483000) + 1;
+  }
   $('#online').hidden = true;
-  openSelect('cpu');
-  $('#select-heading').textContent = T('相手が見つからなかったので、CPUと対戦します。あなたのキャラを選ぶ');
+  if (!bot || !CHARS[bot.char]) {
+    openSelect('cpu');
+    $('#select-heading').textContent = T('相手が見つからなかったので、CPUと対戦します。あなたのキャラを選ぶ');
+    return;
+  }
+  // ログインしていてもサーバーの更新中（版違い）ならレートなし
+  app.bot = { bot, seed, matchId, log: [], sent: false, updating: !!(rankedUid() && info && info.ranked === false && info.version && info.version !== NET_VERSION) };
+  openSelect('bot');
 }
 
 function setOnlineError(text) {
@@ -1004,7 +1066,15 @@ bind('#btn-retry', () => startMatch());
 bind('#btn-quit', () => quitToTitle());
 bind('#btn-rematch', () => {
   if (app.mode === 'online') askRematch();
-  else startMatch();
+  else if (app.mode === 'bot') {
+    // BOT 戦の「もう一度探す」：ランクマッチの検索からやり直す（同じ試合はやり直せない）
+    $('#result').hidden = true;
+    app.match = null;
+    app.bot = null;
+    show('#screen-title');
+    openOnline();
+    startRandom();
+  } else startMatch();
 });
 bind('#btn-reselect', () => {
   app.match = null;

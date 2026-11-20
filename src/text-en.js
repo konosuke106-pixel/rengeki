@@ -403,4 +403,8 @@ export const TEXT_EN = {
   "ログインすると、ランクマッチの結果でランキングに載ります": "Sign in to get on the leaderboard through ranked matches",
   "ランクマッチで1試合すると載ります": "Play one ranked match to appear here",
   "あなたは {rank}位（レート {rating}）": "You are #{rank} (rating {rating})",
+  "BOT を探しています…": "Finding a BOT…",
+  "BOT {name}（レート {rating}）と対戦。あなたのキャラを選ぶ": "Versus BOT {name} (rating {rating}). Choose your fighter",
+  "もう一度探す": "Search again",
+  "ゲームの更新中のため、今回はレートが動きません": "The game is updating, so your rating won't change this time",
 };

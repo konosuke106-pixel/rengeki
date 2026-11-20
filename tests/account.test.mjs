@@ -70,3 +70,13 @@ test('試合の途中で異常に終わったら（切断・食い違い）「�
 test('ランダム対戦の部屋名は、サーバーが受け付ける形（R＋8文字）になっている', () => {
   for (let i = 0; i < 200; i++) assert.match(`R${makeRoomCode()}${makeRoomCode()}`, /^R[2-9A-HJ-NP-Z]{8}$/);
 });
+
+import { pickGuestBot } from '../src/account.js';
+
+test('ログインしていない人の BOT は、レートが一番近い1体（同じ近さなら弱い方）', () => {
+  const bots = [{ id: 'a', rating: 1100 }, { id: 'b', rating: 1450 }, { id: 'c', rating: 1550 }, { id: 'd', rating: 1850 }];
+  assert.equal(pickGuestBot(bots).id, 'b');
+  assert.equal(pickGuestBot(bots, 1800).id, 'd');
+  assert.equal(pickGuestBot(bots, 900).id, 'a');
+  assert.equal(pickGuestBot([]), null);
+});
