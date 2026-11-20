@@ -22,6 +22,7 @@ onLangChange(() => {
 });
 
 const SKY_PAD = (MAX_VIEW_W - VIEW_W) / 2;
+const FESTIVAL_STEPS = 6; // 祭りの舞台：太鼓6回で提灯が全部灯り、花火が上がって最初に戻る
 const SFX_TEXT = { l: ['パシッ', 'ビシッ'], m: ['バキッ', 'ドカッ'], h: ['ドゴォ', 'ズガッ'], s: ['ズドン', 'ゴォッ'] };
 
 const STAGES = {
@@ -654,6 +655,7 @@ export class Renderer {
         case 'drum':
           playSound('bell');
           this.pushText('ドン', this.camX, 120, '#ffe36b', 50, 0);
+          this.pushText(T('ゲージアップ'), this.camX, 175, '#ffffff', 28, 0);
           break;
         case 'burn':
           this.spark(e.x, sy, 16, '#ff8a2a', 9);
@@ -853,6 +855,7 @@ export class Renderer {
     const shy = this.shake ? (Math.random() - 0.5) * this.shake : 0;
 
     this.drawStage(s, shx, shy);
+    this.drawFestival(s, shx, shy);
     ctx.save();
     ctx.translate(VIEW_W / 2 - this.camX + shx, shy);
 
@@ -981,6 +984,64 @@ export class Renderer {
     ctx.beginPath();
     ctx.ellipse(p.x, GROUND_Y + 6, 64 * k, 11 * k, 0, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  // 祭りの舞台：太鼓が鳴るたびに背景が少しずつにぎやかになる（太鼓＝ゲージが増える合図だと分かるように）。
+  // 試合のコマ数 s.gim.t だけで決まるので、巻き戻しても見た目が食い違わない。6回目で花火が上がって最初に戻る
+  drawFestival(s, shx, shy) {
+    const st = this.stage;
+    const def = (STAGE_INFO[s.stage] && STAGE_INFO[s.stage].gim) || {};
+    if (!st || !st.def.lanterns || !s.gimmicks || !s.gim || !def.drum) return;
+    const ctx = this.ctx;
+    const every = def.drum.every;
+    const beats = Math.floor(s.gim.t / every);
+    const phase = (s.gim.t % every) / every;
+    const level = beats % FESTIVAL_STEPS; // 0〜5：灯った提灯の段階
+    ctx.save();
+    // 空がだんだん暖かい色に
+    if (level > 0) {
+      ctx.fillStyle = `rgba(255, 120, 60, ${0.035 * level})`;
+      ctx.fillRect(-SKY_PAD, 0, MAX_VIEW_W, GROUND_Y);
+    }
+    // 提灯：段階に応じて、灯る数が増える（6個に1個 → 6個に5個）。次の太鼓の直前は少しまたたく
+    const lx = -710 - this.camX * 0.4 + shx * 0.5;
+    const ly = shy * 0.5;
+    const soon = phase > 0.85 && this.clock % 8 < 4 ? 1.25 : 1;
+    ctx.globalCompositeOperation = 'lighter';
+    let i = 0;
+    for (let row = 0; row < 2; row++) {
+      const baseY = 300 + row * 70;
+      for (let x = 45 + row * 45; x < 2700; x += 90, i++) {
+        if (i % FESTIVAL_STEPS >= level) continue;
+        const sx = lx + x;
+        if (sx < -SKY_PAD - 60 || sx > VIEW_W + SKY_PAD + 60) continue;
+        const sy = ly + baseY + Math.sin(x / 180) * 24 + 22;
+        const g = ctx.createRadialGradient(sx, sy, 2, sx, sy, 46 * soon);
+        g.addColorStop(0, 'rgba(255, 220, 140, 0.75)');
+        g.addColorStop(1, 'rgba(255, 120, 40, 0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx - 50, sy - 50, 100, 100);
+      }
+    }
+    // 太鼓が鳴った直後は、画面がふわっと明るくなる
+    if (beats > 0 && phase < 0.1) {
+      ctx.fillStyle = `rgba(255, 210, 120, ${0.22 * (1 - phase / 0.1)})`;
+      ctx.fillRect(-SKY_PAD, 0, MAX_VIEW_W, VIEW_H);
+    }
+    // 6回目：花火
+    if (beats > 0 && level === 0 && phase < 0.3) {
+      const k = phase / 0.3;
+      for (const [cx, cy, col] of [[300, 235, '255, 200, 90'], [700, 205, '255, 120, 160'], [1050, 245, '140, 220, 255']]) {
+        ctx.fillStyle = `rgba(${col}, ${1 - k})`;
+        for (let a = 0; a < 18; a++) {
+          const ang = (a / 18) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.arc(cx + Math.cos(ang) * k * 110, cy + Math.sin(ang) * k * 110 + k * k * 20, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
   }
 
   // ステージの仕掛け：予告の印と、落ちてくる物・横切る物・揺れる荷物・樽

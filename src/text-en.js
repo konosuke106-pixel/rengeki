@@ -417,4 +417,5 @@ export const TEXT_EN = {
   "登録しました": "Registered",
   "登録する": "Register",
   "登録できませんでした。時間をおいてもう一度試してね": "Couldn't register. Please try again later",
+  "ゲージアップ": "Meter up",
 };
