@@ -32,6 +32,8 @@ ${js.replace(/<\/script/g, '<\\/script')}
 </script>
 `;
 mkdirSync(root + 'dist', { recursive: true });
+// 版の印（BOT 戦のサーバーが同じ版か確かめるのに使う。tools/make-bot-function.mjs が読む）
+writeFileSync(root + 'dist/version.txt', `${version}\n`);
 writeFileSync(root + 'dist/rengeki.html', out);
 // 普通のWebサイトとして置く完全なページ。安全用のヘッダー（_headers の CSP）で
 // ページ内に直接書いたスクリプトとスタイルを禁止しているので、別ファイルにして読み込む

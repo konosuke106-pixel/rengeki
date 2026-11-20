@@ -2,3 +2,6 @@ node_modules/
 dist/
 .claude/settings.local.json
 redirect/
+
+# BOT 戦の Edge Function に写すゲームのコード（tools/make-bot-function.mjs が作る）
+supabase/functions/bot-match/game/

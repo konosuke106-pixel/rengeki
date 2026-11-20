@@ -1,0 +1,6 @@
+# Supabase CLI の設定（GitHub Actions が Edge Function を配置する時に使う）
+project_id = "rengeki"
+
+[functions.bot-match]
+# ログインの確認は関数の中で行う（ブラウザの事前確認 OPTIONS を通すため、入口では確かめない）
+verify_jwt = false

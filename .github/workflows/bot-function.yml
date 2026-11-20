@@ -1,0 +1,42 @@
+# BOT 戦の Edge Function（supabase/functions/bot-match）を、main に push するたびにゲームと同じ版で配置し直す。
+# サーバー側の試合の再生が、公開中のゲームと同じ中身で動くようにするため。
+# 秘密 SUPABASE_ACCESS_TOKEN（Supabase のアクセストークン）が GitHub に登録されていない間は何もしない
+name: Deploy BOT match function
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - name: Check token
+        id: token
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "SUPABASE_ACCESS_TOKEN がないので配置しません"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.ok == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.token.outputs.ok == 'true'
+        with:
+          node-version: 22
+      - name: Build and copy game code
+        if: steps.token.outputs.ok == 'true'
+        run: |
+          node tools/build.mjs
+          node tools/make-bot-function.mjs
+      - name: Deploy
+        if: steps.token.outputs.ok == 'true'
+        run: npx --yes supabase@2 functions deploy bot-match --project-ref pneboddgrvktehjslplg --use-api --no-verify-jwt
