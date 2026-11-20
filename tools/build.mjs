@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = (p) => readFileSync(root + p, 'utf8');
-const ORDER = ['config', 'text-en', 'text-es', 'text-zh', 'text-ko', 'i18n', 'characters', 'stages', 'sim', 'rollback', 'online-config', 'net', 'lobby', 'account', 'ai', 'input', 'poses', 'audio', 'render', 'main'];
+const ORDER = ['config', 'text-en', 'text-es', 'text-zh', 'text-ko', 'i18n', 'characters', 'stages', 'sim', 'rollback', 'online-config', 'net', 'lobby', 'account', 'ai', 'replay', 'input', 'poses', 'audio', 'render', 'main'];
 
 const joined = ORDER.map((name) => read(`src/${name}.js`)
   .replace(/^import[\s\S]*?from\s+['"][^'"]+['"];?[ \t]*$/gm, '')
