@@ -3,12 +3,15 @@
 // できた動画をこのサーバーに送ってもらう。再生と同じ時間（約30秒）かかる。
 //   node tools/record-trailer.mjs        … dist/trailer.mp4（きれいめ、約50MB）
 //   node tools/record-trailer.mjs small  … dist/trailer-small.mp4（軽め、スマホに送る・SNS用）
+//   --vbr=6000000 のように付けると、画質（ビット毎秒）を決めて軽めの版（-small）を作る
 //   node tools/record-trailer.mjs --page=promo-ranked          … ランクマッチの宣伝動画 dist/promo-ranked.mp4（横長）
 //   node tools/record-trailer.mjs --page=promo-ranked --tall   … 同じ中身の縦長 dist/promo-ranked-tall.mp4（1080x1920）
 //   node tools/record-trailer.mjs --page=promo-ranked --shots=300,900  … 録画せず、そのコマの静止画を dist/shots/ に保存（確認用）
 const args = process.argv.slice(2);
 const opt = (name) => { const a = args.find((x) => x.startsWith(`--${name}=`)); return a ? a.slice(name.length + 3) : null; };
-const small = args.includes('small');
+// small は軽め（スマホに送る・SNS用。送れるのは30MBまで）。--vbr=ビット毎秒 で細かく決められる
+const vbr = opt('vbr') ? Number(opt('vbr')) : args.includes('small') ? 2500000 : 0;
+const small = vbr > 0;
 const tall = args.includes('--tall');
 const page = opt('page') || 'trailer';
 const shots = opt('shots') ? opt('shots').split(',').map(Number).filter((n) => n >= 0) : null;
@@ -143,7 +146,7 @@ const server = createServer(async (req, res) => {
 
 server.listen(port, '127.0.0.1', () => {
   console.log(shots ? '静止画を作っています…' : '録画中…（約35秒）');
-  const query = shots ? `still=${Math.max(...shots)}&shots=${shots.join(',')}` : `record=1${small ? '&vbr=2500000' : ''}`;
+  const query = shots ? `still=${Math.max(...shots)}&shots=${shots.join(',')}` : `record=1${vbr ? `&vbr=${vbr}` : ''}`;
   browser = spawn(edge, [
     '--headless=new', '--hide-scrollbars', `--user-data-dir=${join(tmpdir(), `rengeki-trailer-${Date.now()}`)}`,
     '--autoplay-policy=no-user-gesture-required', '--disable-background-timer-throttling',
