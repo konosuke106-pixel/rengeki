@@ -88,8 +88,8 @@ begin
   exception when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
 
   -- ランキングと自分の順位
-  perform pg_temp.check((select name from public.ranking() limit 1) = 'アカ', 'ランキングの1位');
-  perform pg_temp.as_user(a); perform pg_temp.check(public.my_rank() = 1, '自分の順位');
+  perform pg_temp.check((select name from public.ranking() where not is_bot limit 1) = 'アカ', 'ランキングの1位（人の中で）');
+  perform pg_temp.as_user(a); perform pg_temp.check(public.my_rank() = 1 + (select count(*)::int from public.list_bots() lb where lb.rating > pg_temp.r(a)), '自分の順位（BOT も数える）');
 
   -- 削除
   perform pg_temp.as_user(b); perform public.delete_my_account();
