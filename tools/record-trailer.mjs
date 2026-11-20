@@ -1,9 +1,18 @@
-// 宣伝動画を録画して dist/trailer.mp4（録れない環境では .webm）に保存する。
-// 一時サーバーを立て、Edge を画面なしで開いて tools/trailer.html?record=1 を再生し、
-// できた動画をこのサーバーに送ってもらう。再生と同じ時間（約32秒）かかる。
+// 宣伝動画を録画して dist/ に mp4（録れない環境では .webm）で保存する。
+// 一時サーバーを立て、Edge を画面なしで開いて tools/<ページ>.html?record=1 を再生し、
+// できた動画をこのサーバーに送ってもらう。再生と同じ時間（約30秒）かかる。
 //   node tools/record-trailer.mjs        … dist/trailer.mp4（きれいめ、約50MB）
 //   node tools/record-trailer.mjs small  … dist/trailer-small.mp4（軽め、スマホに送る・SNS用）
-const small = process.argv[2] === 'small';
+//   node tools/record-trailer.mjs --page=promo-ranked          … ランクマッチの宣伝動画 dist/promo-ranked.mp4（横長）
+//   node tools/record-trailer.mjs --page=promo-ranked --tall   … 同じ中身の縦長 dist/promo-ranked-tall.mp4（1080x1920）
+//   node tools/record-trailer.mjs --page=promo-ranked --shots=300,900  … 録画せず、そのコマの静止画を dist/shots/ に保存（確認用）
+const args = process.argv.slice(2);
+const opt = (name) => { const a = args.find((x) => x.startsWith(`--${name}=`)); return a ? a.slice(name.length + 3) : null; };
+const small = args.includes('small');
+const tall = args.includes('--tall');
+const page = opt('page') || 'trailer';
+const shots = opt('shots') ? opt('shots').split(',').map(Number).filter((n) => n >= 0) : null;
+const name = `${page}${tall ? '-tall' : ''}${small ? '-small' : ''}`;
 import { createServer } from 'node:http';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
@@ -14,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const edge = process.env.EDGE || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const port = 5198;
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
 
 // 録画した mp4 は細切れ形式で、全体の長さが書かれていない（再生ソフトで長さが出ず、先送りもできない）。
 // 細切れの中のコマの長さを足して全体の長さを求め、見出し（mvhd・tkhd・mdhd）に書き、mehd を足す
@@ -85,13 +94,28 @@ function fixMp4Duration(b) {
 }
 
 let browser = null;
+const got = new Set();
 const server = createServer(async (req, res) => {
+  if (req.method === 'POST' && req.url.startsWith('/shot?')) {
+    // 確認用の静止画（--shots）
+    const g = Number(new URL(req.url, 'http://x').searchParams.get('g'));
+    const parts = [];
+    for await (const c of req) parts.push(c);
+    await mkdir(join(root, 'dist', 'shots'), { recursive: true });
+    const out = join(root, 'dist', 'shots', `${name}-${g}.png`);
+    await writeFile(out, Buffer.concat(parts));
+    res.end('ok');
+    console.log(`静止画: ${out}`);
+    got.add(g);
+    if (shots.every((n) => got.has(n))) setTimeout(() => { browser?.kill(); server.close(); process.exit(0); }, 300);
+    return;
+  }
   if (req.method === 'POST' && req.url === '/upload') {
     const parts = [];
     for await (const c of req) parts.push(c);
     const ext = (req.headers['content-type'] || '').includes('mp4') ? 'mp4' : 'webm';
     await mkdir(join(root, 'dist'), { recursive: true });
-    const out = join(root, 'dist', `trailer${small ? '-small' : ''}.${ext}`);
+    const out = join(root, 'dist', `${name}.${ext}`);
     let buf = Buffer.concat(parts);
     let note = '';
     if (ext === 'mp4') {
@@ -118,13 +142,14 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, '127.0.0.1', () => {
-  console.log('録画中…（約35秒）');
+  console.log(shots ? '静止画を作っています…' : '録画中…（約35秒）');
+  const query = shots ? `still=${Math.max(...shots)}&shots=${shots.join(',')}` : `record=1${small ? '&vbr=2500000' : ''}`;
   browser = spawn(edge, [
     '--headless=new', '--hide-scrollbars', `--user-data-dir=${join(tmpdir(), `rengeki-trailer-${Date.now()}`)}`,
     '--autoplay-policy=no-user-gesture-required', '--disable-background-timer-throttling',
     '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
-    '--force-device-scale-factor=1', '--window-size=1280,720',
-    `http://localhost:${port}/tools/trailer.html?record=1${small ? '&vbr=2500000' : ''}`,
+    '--force-device-scale-factor=1', tall ? '--window-size=1080,1920' : '--window-size=1280,720',
+    `http://localhost:${port}/tools/${page}.html?${query}${tall ? '&tall=1' : ''}`,
   ], { stdio: 'ignore' });
-  setTimeout(() => { console.error('時間内に動画が届きませんでした'); browser?.kill(); process.exit(1); }, 120000);
+  setTimeout(() => { console.error(shots ? '時間内に静止画が届きませんでした' : '時間内に動画が届きませんでした'); browser?.kill(); process.exit(1); }, 120000);
 });

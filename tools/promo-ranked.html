@@ -1,0 +1,1175 @@
+<!doctype html>
+<!--
+  ランクマッチの宣伝動画（横長 1280x720 と 縦長 1080x1920、約30秒）。
+  オンライン対戦の画面（ランクマッチ・BOT・結果・ランキング・ログイン）は、ゲームの画面（styles.css）と同じ見た目をここで描く。
+  サーバーにはつながない。名前・レート・ランキングの人は作り物（BOT の名前とレートは本物の10体と同じ）。
+  対戦はゲームの戦闘エンジンと描画をそのまま使い、tools/promo-scan.mjs で探した「あなた 対 BOT」の試合を再生する。
+  開発サーバーで http://localhost:5180/tools/promo-ranked.html             … その場で再生（画面を押すと音つき）
+                 http://localhost:5180/tools/promo-ranked.html?tall=1      … 縦長（X やスマホ向け）
+                 http://localhost:5180/tools/promo-ranked.html?still=600   … 600コマ目の静止画（確認用）
+  録画は node tools/record-trailer.mjs --page=promo-ranked [--tall]（dist/promo-ranked.mp4 / promo-ranked-tall.mp4）
+-->
+<html lang="ja"><head><meta charset="utf-8">
+<title>連撃 RENGEKI ランクマッチ宣伝動画</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Noto+Sans+SC:wght@700;900&family=Noto+Sans+KR:wght@700;900&display=swap">
+<style>
+html, body { margin: 0; background: #000; }
+canvas { display: block; width: 100vw; max-width: 1280px; aspect-ratio: 16 / 9; }
+body.tall canvas { width: auto; height: 100vh; max-width: none; aspect-ratio: 9 / 16; }
+</style>
+</head><body><canvas id="c" width="1280" height="720"></canvas>
+<script type="module">
+import { createMatch, step, cloneState } from '../src/sim.js';
+import { createCpu } from '../src/ai.js';
+import { CHARS, CHAR_IDS } from '../src/characters.js';
+import { POSES } from '../src/poses.js';
+import { Renderer, paintFighter } from '../src/render.js';
+import { audioTap, setMuted, isMuted, playSound } from '../src/audio.js';
+import { setLang, T } from '../src/i18n.js';
+import { TEXT_EN } from '../src/text-en.js';
+import { TEXT_ES } from '../src/text-es.js';
+import { TEXT_ZH } from '../src/text-zh.js';
+import { TEXT_KO } from '../src/text-ko.js';
+// 字幕も画面も日本語で録る（録画用の Edge の言語設定に左右されないように）
+setLang('ja');
+
+const params = new URLSearchParams(location.search);
+const STILL = params.has('still') ? Number(params.get('still')) : null;
+const RECORD = params.has('record');
+const TALL = params.has('tall');
+const W = TALL ? 1080 : 1280, H = TALL ? 1920 : 720; // 動画の大きさ
+const PW = 1280, PH = 720; // ゲームの画面（16:9）の大きさ
+const BAR = 96; // 150BPM で1小節 = 96コマ（1拍24コマ）
+const canvas = document.getElementById('c');
+canvas.width = W;
+canvas.height = H;
+if (TALL) document.body.classList.add('tall');
+const out = canvas.getContext('2d');
+// ゲームの画面はここに描く。横長はそのまま動画、縦長は真ん中にはめ込む
+const pic = TALL ? document.createElement('canvas') : canvas;
+pic.width = PW;
+pic.height = PH;
+const ctx = pic.getContext('2d');
+const renderer = new Renderer(pic);
+renderer.scale = 1;
+renderer.extraX = 0;
+
+// styles.css と同じ色
+const INK = '#15101c', PAPER = '#f5ecd6', PAPER_DIM = '#d8ccb0', PERSIMMON = '#e4552a', GOLD = '#f6c445', RED = '#d9391f';
+const DISPLAY = '"Dela Gothic One", "Noto Sans KR", sans-serif';
+const BODY = '"Zen Kaku Gothic New", "Noto Sans SC", "Noto Sans KR", sans-serif';
+const ZH = '"Noto Sans SC", sans-serif';
+const KO = '"Noto Sans KR", sans-serif';
+
+/* ---------- 作り物のデータ（本物のアカウントは使わない） ---------- */
+const ME = { char: 'kagari', name: 'SoraKick', rating: 1500 };
+// BOT は本物の10体のうち Mina（ツヅミ・普通・1450）。名前の前には必ず「BOT」
+const BOT = { name: 'Mina', char: 'tsuzumi', level: 'normal', rating: 1450 };
+// レートの計算はサーバーと同じ（20試合までは K=40）
+const DELTA = Math.round(40 * (1 - 1 / (1 + 10 ** ((BOT.rating - ME.rating) / 400))));
+const NEW_RATING = ME.rating + DELTA;
+const RANK = [
+  { name: 'Kuro', bot: true, rating: 1850 },
+  { name: 'Yuki', bot: true, rating: 1780 },
+  { name: 'とうふ師範', rating: 1731, wins: 22, games: 31 },
+  { name: 'Ryu', bot: true, rating: 1700 },
+  { name: 'NekoPunch', rating: 1658, wins: 17, games: 26 },
+  { name: 'Shino', bot: true, rating: 1600 },
+  { name: 'かぜまる', rating: 1561, wins: 11, games: 18 },
+  { name: 'Gan', bot: true, rating: 1520 },
+  { name: ME.name, rating: NEW_RATING, wins: 1, games: 1, me: true },
+];
+const MY_RANK = RANK.findIndex((r) => r.me) + 1;
+
+// 対戦の場面：あなた（CPU つよい）対 BOT Mina。BOT のキャラのステージ・ギミックあり（本物の BOT 戦と同じ）
+const MATCH = { p1: ME.char, p2: BOT.char, stage: CHARS[BOT.char].stage, levels: ['hard', BOT.level], seed: [419707, 5550637] };
+
+/* ---------- 場面の並び（from は試合開始からのコマ。tools/promo-scan.mjs で探した） ---------- */
+const FEATS = ['ランクマッチ', 'BOT', 'レート', 'ランキング', '5言語'];
+const SCENES = [
+  { kind: 'intro', len: 2 * BAR, full: true },
+  { kind: 'online', len: 2 * BAR, feat: 0, caps: [
+    { at: 0, cap: '世界の誰かとランクマッチ', tall: '世界の誰かと\nランクマッチ', sub: 'オンライン対戦 →「相手を探す」' },
+    { at: 96, cap: '誰もいなくても10秒でBOTが相手に', tall: '誰もいなくても\n10秒でBOTが相手に', sub: 'レートの近いBOTが10体スタンバイ' },
+  ] },
+  { kind: 'select', len: 1.5 * BAR, feat: 1 },
+  { kind: 'vs', len: BAR / 2, feat: 1, landNoCap: true },
+  { kind: 'clip', len: 2 * BAR, feat: 1, from: 5680, caps: [
+    { at: 0, cap: 'BOTは10体・レート1100〜1850', tall: 'BOTは10体\nレート1100〜1850', sub: '名前の前には必ず「BOT」の印' },
+  ] },
+  { kind: 'clip', len: 2.5 * BAR, feat: 2, from: 6120, slowAt: 6237, caps: [
+    { at: 0, cap: '超必殺で決めろ！', sub: 'ログイン中ならBOT戦でもレートが動く', side: 'right' }, // 決着は画面の左端なので字幕は右に
+  ] },
+  { kind: 'result', len: 1.5 * BAR, feat: 2, caps: [
+    { at: 0, cap: '勝てばレートが上がる', tall: '勝てば\nレートが上がる', sub: 'はじめは1500から' },
+  ] },
+  { kind: 'ranking', len: 2 * BAR, feat: 3, caps: [
+    { at: 0, cap: '上位100人のランキング', tall: '上位100人の\nランキング', sub: '人もBOTも同じ表に。BOTには「BOT」の印' },
+  ] },
+  { kind: 'login', len: BAR, feat: 3, caps: [
+    { at: 0, cap: 'Googleログインでレートとランキング', tall: 'Googleログインで\nレートとランキング', sub: 'ログインしなくても全部遊べる' },
+  ] },
+  { kind: 'langs', len: 1.5 * BAR, feat: 4, caps: [
+    { at: 0, cap: '5言語対応', sub: '日本語・English・Español・中文・한국어' },
+  ] },
+  { kind: 'end', len: 2.5 * BAR, full: true },
+];
+let start = 0;
+for (const sc of SCENES) { sc.start = start; start += sc.len; }
+const TOTAL = start;
+
+/* ---------- 試合：最初から最後まで一度動かして、場面の入力と状態を取っておく ---------- */
+const WARM = 40; // 描画（ポーズや体力表示）をなじませるコマ数
+function prepareMatch() {
+  const m = MATCH;
+  const s = createMatch({ p1: m.p1, p2: m.p2, stage: m.stage, gimmicks: true });
+  const cpus = [createCpu(m.levels[0], m.seed[0]), createCpu(m.levels[1], m.seed[1])];
+  const clips = SCENES.filter((sc) => sc.kind === 'clip');
+  const inputs = [];
+  for (let f = 0; s.phase !== 'over' && f < 60 * 60 * 5; f++) {
+    for (const sc of clips) if (f === sc.from - WARM) { sc.saved = cloneState(s); sc.begin = f; }
+    const inp = [cpus[0](s, 0), cpus[1](s, 1)];
+    inputs.push(inp);
+    step(s, inp);
+  }
+  for (const sc of clips) sc.inputs = inputs.slice(sc.begin);
+  return s;
+}
+const FINAL = prepareMatch(); // 決着した状態（結果画面の数字に使う）
+if (FINAL.matchWinner !== 0) throw new Error('見せ場の試合で「あなた」が勝っていません。tools/promo-scan.mjs で探し直してください');
+
+let cur = null; // 今再生中の試合 { sc, s, i, local, slow }
+function enterClip(sc) {
+  renderer.reset();
+  renderer.setStage(MATCH.stage);
+  const s = cloneState(sc.saved);
+  const wasMuted = isMuted();
+  setMuted(true);
+  let i = 0;
+  for (; i < WARM; i++) {
+    step(s, sc.inputs[i]);
+    renderer.consume(s.events, s);
+    renderer.tick(s);
+  }
+  setMuted(wasMuted);
+  renderer.banner = null;
+  cur = { sc, s, i, local: 0, slow: 0 };
+}
+function clipStep() {
+  const c = cur;
+  const sc = c.sc;
+  // 決着の一撃の前後だけスロー（2コマに1回だけ進める）
+  const f = sc.from + c.local;
+  const slow = sc.slowAt && f >= sc.slowAt - 8 && f < sc.slowAt + 24;
+  c.local++;
+  if (slow && (c.slow++ % 2 === 0)) { renderer.tick(c.s); return; }
+  const inp = sc.inputs[c.i++];
+  if (!inp) { renderer.tick(c.s); return; }
+  step(c.s, inp);
+  renderer.consume(c.s.events, c.s);
+  renderer.tick(c.s);
+}
+function drawBattle(t) {
+  while (cur.local <= t) clipStep();
+  renderer.draw(cur.s, {});
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+/* ---------- 文字と飾り ---------- */
+const ease = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+function txt(c, s, x, y, size, fill, { font = DISPLAY, weight = '', align = 'left', base = 'alphabetic', line = 0, spacing = 0, stroke = INK } = {}) {
+  c.font = `${weight ? weight + ' ' : ''}${size}px ${font}`;
+  c.textAlign = align;
+  c.textBaseline = base;
+  c.letterSpacing = `${spacing}px`;
+  c.lineJoin = 'round';
+  if (line) { c.lineWidth = line; c.strokeStyle = stroke; c.strokeText(s, x, y); }
+  c.fillStyle = fill;
+  c.fillText(s, x, y);
+  c.letterSpacing = '0px';
+}
+function measure(c, s, size, font = DISPLAY, weight = '') {
+  c.font = `${weight ? weight + ' ' : ''}${size}px ${font}`;
+  c.letterSpacing = '0px';
+  return c.measureText(s).width;
+}
+// 日本語の文を幅で折り返す（句読点や閉じかっこは行の頭に来ないようにする）
+function wrap(c, s, maxW, size, font = BODY, weight = '') {
+  c.font = `${weight ? weight + ' ' : ''}${size}px ${font}`;
+  const lines = [];
+  let line = '';
+  for (const ch of s) {
+    if (line && c.measureText(line + ch).width > maxW && !'。、）」・…！'.includes(ch)) { lines.push(line); line = ch; }
+    else line += ch;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+function rect(c, x, y, w, h, fill) { c.fillStyle = fill; c.fillRect(x, y, w, h); }
+// 押した所に出す輪（動画用の目印）
+function tapRing(c, x, y, t, at) {
+  const k = (t - at + 6) / 22;
+  if (k < 0 || k > 1) return;
+  c.save();
+  c.globalAlpha = k < 0.27 ? k / 0.27 : 1 - (k - 0.27) / 0.73;
+  c.fillStyle = 'rgba(245,236,214,.75)';
+  c.beginPath();
+  c.arc(x, y, 16, 0, Math.PI * 2);
+  c.fill();
+  if (t >= at) {
+    c.strokeStyle = PAPER;
+    c.lineWidth = 5;
+    c.beginPath();
+    c.arc(x, y, 18 + 46 * ease((t - at) / 14), 0, Math.PI * 2);
+    c.stroke();
+  }
+  c.restore();
+}
+
+/* ---------- ゲームの画面と同じ見た目の部品（styles.css の .panel .action .chip など） ---------- */
+const PANEL_W = 760, PANEL_X = (PW - PANEL_W) / 2, PAD = 20, INNER = PANEL_W - PAD * 2;
+function overlay(alpha = 1) { rect(ctx, 0, 0, PW, PH, `rgba(21,16,28,${0.88 * alpha})`); }
+function panel(y, h) {
+  rect(ctx, PANEL_X, y, PANEL_W, h, INK);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = PAPER;
+  ctx.strokeRect(PANEL_X + 1.5, y + 1.5, PANEL_W - 3, h - 3);
+}
+// ボタン（.action）。幅を返す
+function action(x, y, label, { sub = false, down = false } = {}) {
+  const w = measure(ctx, label, 18, BODY, 900) + 36;
+  rect(ctx, x, y, w, 43, sub ? '#352a42' : PERSIMMON);
+  if (down) rect(ctx, x, y, w, 43, 'rgba(21,16,28,.3)');
+  txt(ctx, label, x + 18, y + 22, 18, PAPER, { font: BODY, weight: 900, base: 'middle' });
+  return w;
+}
+function chipBtn(x, y, label, { size = 15, danger = false } = {}) {
+  const w = measure(ctx, label, size, BODY, 700) + 32;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = danger ? '#c0392b' : '#4b3f57';
+  ctx.strokeRect(x + 1, y + 1, w - 2, size * 1.45 + 14);
+  txt(ctx, label, x + 16, y + (size * 1.45 + 16) / 2, size, danger ? '#ff8a7a' : PAPER, { font: BODY, weight: 700, base: 'middle' });
+  return w;
+}
+function h2(x, y, s) { txt(ctx, s, x, y + 46, 48, PAPER); return 58; }
+function h3(x, y, s) { txt(ctx, s, x, y + 21, 22, GOLD); return 27; }
+function para(x, y, s, maxW, { size = 15, color = PAPER, weight = 500, lh = 1.5 } = {}) {
+  const lines = wrap(ctx, s, maxW, size, BODY, weight);
+  lines.forEach((l, i) => txt(ctx, l, x, y + size * lh * i + size * 1.1, size, color, { font: BODY, weight }));
+  return lines.length * size * lh;
+}
+
+// タイトル画面（オンラインやランキングの画面はこの上に重なって出る）。重なりで暗くなるので大まかに描いて取っておく
+const titleBg = (() => {
+  const cv = document.createElement('canvas');
+  cv.width = PW;
+  cv.height = PH;
+  return cv;
+})();
+function paintTitleBg() {
+  const c = titleBg.getContext('2d');
+  const artW = Math.round(PW * 1.35 / 2.35);
+  rect(c, 0, 0, artW, PH, PERSIMMON);
+  c.save();
+  c.beginPath();
+  c.rect(0, 0, artW, PH);
+  c.clip();
+  c.fillStyle = GOLD;
+  c.beginPath();
+  c.arc(-100 + 396, -58 + 396, 396, 0, Math.PI * 2);
+  c.fill();
+  const mh = PH * 0.26, my = PH - mh;
+  c.fillStyle = INK;
+  c.beginPath();
+  [[0, 62], [14, 28], [26, 58], [44, 8], [60, 54], [76, 26], [100, 66], [100, 100], [0, 100]].forEach(([x, y], i) => {
+    const px = (x / 100) * artW, py = my + (y / 100) * mh;
+    if (i) c.lineTo(px, py); else c.moveTo(px, py);
+  });
+  c.fill();
+  txt(c, '連撃', 60, 250, 245, INK);
+  txt(c, 'RENGEKI', 66, 300, 24, INK, { font: BODY, weight: 900, spacing: 8 });
+  ['kagari', 'goutetsu', 'shizuku', 'rai', 'hayate'].forEach((id, n) => {
+    const ch = CHARS[id];
+    c.save();
+    c.translate(110 + n * 130, 640 - (n % 2) * 40);
+    c.scale(0.5, 0.5);
+    paintFighter(c, ch, ch.palettes[0], POSES.idle, 0, 0, 1, { clock: 8 });
+    c.restore();
+  });
+  c.restore();
+  rect(c, artW, 0, PW - artW, PH, INK);
+  [['CPU対戦', '3本勝負でコンピュータと戦う'], ['2人対戦', '1台のキーボードかゲームパッドで'], ['練習', '操作ガイドつき。コンボも試せる'], ['オンライン対戦', '世界の誰かや、友だちと戦う']]
+    .forEach(([b, s], i) => {
+      const y = 150 + i * 100;
+      rect(c, artW + 52, y, PW - artW - 104, 86, '#241c2d');
+      rect(c, artW + 52, y, 8, 86, PERSIMMON);
+      txt(c, b, artW + 78, y + 46, 34, PAPER);
+      txt(c, s, artW + 78, y + 72, 15, PAPER_DIM, { font: BODY, weight: 500 });
+    });
+}
+
+// キャラ選択の絵（main.js の buildSelect と同じ描き方）
+const portraits = {};
+function paintPortraits() {
+  for (const id of CHAR_IDS) {
+    const ch = CHARS[id];
+    const cv = document.createElement('canvas');
+    cv.width = 300;
+    cv.height = 300;
+    const c = cv.getContext('2d');
+    c.font = `250px ${DISPLAY}`;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillStyle = ch.palettes[0].dark;
+    c.fillText(ch.kana, 150, 150);
+    c.save();
+    c.scale(1.1, 1.1);
+    paintFighter(c, ch, ch.palettes[0], POSES.idle, 136, 262, 1, { clock: 8 });
+    c.restore();
+    portraits[id] = cv;
+  }
+}
+
+/* ---------- 場面ごとの描画（ゲームの画面 1280x720） ---------- */
+function drawOnline(t) {
+  ctx.drawImage(titleBg, 0, 0);
+  overlay(ease(t / 8));
+  if (t < 4) return;
+  const searching = t >= 48;
+  if (!searching) {
+    const h = 476, y = 30;
+    panel(y, h);
+    let cy = y + 22;
+    const x = PANEL_X + PAD;
+    cy += h2(x, cy, T('オンライン対戦')) + 14;
+    cy += h3(x, cy, T('ランクマッチ')) + 9;
+    cy += para(x, cy, T('同じ時間に探している誰かと戦う。2人ともログインしているとレートが動く。見つからなければCPUと対戦。'), INNER) + 9;
+    const bw = action(x, cy, T('相手を探す'), { down: t >= 40 });
+    tapRing(ctx, x + bw / 2, cy + 22, t, 40);
+    cy += 43 + 11;
+    rect(ctx, x, cy, INNER, 1, 'rgba(255,255,255,.15)');
+    cy += 17;
+    const colW = (INNER - 16) / 2, x2 = x + colW + 16;
+    let ly = cy;
+    ly += h3(x, ly, T('部屋を作る')) + 9;
+    ly += para(x, ly, T('コードが出るので、相手に伝えてね。'), colW) + 9;
+    action(x, ly, T('部屋を作る'));
+    let ry = cy;
+    ry += h3(x2, ry, T('部屋に入る')) + 9;
+    ry += para(x2, ry, T('相手から聞いた4文字のコード'), colW) + 9;
+    const jw = measure(ctx, T('入る'), 18, BODY, 900) + 36;
+    rect(ctx, x2, ry, colW - jw - 8, 43, PAPER);
+    txt(ctx, T('例 7KQ2'), x2 + 10, ry + 22, 26, 'rgba(21,16,28,.45)', { base: 'middle', spacing: 3 });
+    action(x2 + colW - jw, ry, T('入る'));
+    action(x, y + h - 22 - 43, T('戻る'), { sub: true });
+  } else {
+    // 部屋のコードは出さず、探している様子だけ（main.js の startRandom と同じ文）
+    const h = 214, y = 150;
+    panel(y, h);
+    const x = PANEL_X + PAD;
+    let cy = y + 22;
+    cy += h2(x, cy, T('オンライン対戦')) + 14;
+    let status;
+    if (t < 58) status = T('サーバーにつないでいます…');
+    else if (t < 150) status = T('相手を探しています…（あと{n}秒）', { n: Math.max(1, 10 - Math.floor((t - 58) / 9.2)) });
+    else status = T('BOT を探しています…');
+    txt(ctx, status, x, cy + 26, 20, PAPER, { font: BODY, weight: 700 });
+    if (t >= 58 && t < 150) {
+      // 10秒待つところは早送りで見せる（動画用の目印）
+      const blink = Math.floor(t / 8) % 2 ? 1 : 0.55;
+      ctx.globalAlpha = blink;
+      txt(ctx, '▶▶ 早送り', PANEL_X + PANEL_W - PAD, y + 50, 20, GOLD, { font: BODY, weight: 900, align: 'right' });
+      ctx.globalAlpha = 1;
+      // 残り時間の帯
+      const k = Math.min(1, (t - 58) / 92);
+      rect(ctx, x, cy + 44, INNER, 6, '#352a42');
+      rect(ctx, x, cy + 44, INNER * (1 - k), 6, GOLD);
+    }
+    cy += 64 + 14;
+    action(x, cy, T('戻る'), { sub: true });
+  }
+}
+
+function selectHeading() {
+  return [
+    T('BOT {name}（レート {rating}）と対戦。あなたのキャラを選ぶ', { name: BOT.name, rating: BOT.rating }),
+    T('（レートの付く試合。途中でやめると負けになります）'),
+  ];
+}
+function drawSelect(t) {
+  rect(ctx, 0, 0, PW, PH, INK);
+  const cw = chipBtn(16, 18, T('戻る'));
+  const hx = 16 + cw + 16;
+  const heads = selectHeading();
+  // 見出しの「BOT Mina（レート 1450）」に金の下線（動画用の目印）
+  const botPart = `BOT ${BOT.name}（${T('レート')} ${BOT.rating}）`;
+  const uw = measure(ctx, botPart, 34) * ease((t - 10) / 14);
+  if (t >= 10) rect(ctx, hx - 4, 18 + 34, uw + 8, 12, 'rgba(246,196,69,.55)');
+  heads.forEach((l, i) => txt(ctx, l, hx, 18 + 34 + i * 41, 34, PAPER));
+  const top = 18 + heads.length * 41 + 18;
+  const gap = 8, cols = 8;
+  const cardW = (PW - 32 - gap * (cols - 1)) / cols, cardH = (PH - 18 - top - gap) / 2;
+  CHAR_IDS.forEach((id, n) => {
+    const ch = CHARS[id];
+    const x = 16 + (n % cols) * (cardW + gap);
+    let y = top + Math.floor(n / cols) * (cardH + gap);
+    const hot = id === ME.char && t >= 70;
+    if (hot) y -= 4 * ease((t - 70) / 6);
+    rect(ctx, x, y, cardW, cardH, ch.card || ch.palettes[0].gi);
+    const infoH = 122;
+    const ph = cardH - infoH - 6;
+    const ps = Math.min(cardW, ph);
+    ctx.drawImage(portraits[id], x + (cardW - ps) / 2, y + (ph - ps) / 2, ps, ps);
+    const ix = x + 6, iy = y + cardH - 6 - infoH;
+    rect(ctx, ix, iy, cardW - 12, infoH, INK);
+    txt(ctx, T(ch.name), ix + 12, iy + 34, 24, PAPER);
+    txt(ctx, T(ch.title), ix + 12, iy + 56, 14, GOLD, { font: BODY, weight: 700 });
+    Object.entries(ch.stats).forEach(([k, v], j) => {
+      txt(ctx, T(k), ix + 12, iy + 80 + j * 17, 13, PAPER, { font: BODY, weight: 700 });
+      txt(ctx, '■'.repeat(v) + '□'.repeat(5 - v), ix + 52, iy + 80 + j * 17, 13, GOLD, { font: BODY, weight: 500, spacing: 0.6 });
+    });
+    if (hot) {
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = GOLD;
+      ctx.strokeRect(x + 2.5, y + 2.5, cardW - 5, cardH - 5);
+      tapRing(ctx, x + cardW / 2, y + ph / 2, t, 84);
+    }
+  });
+}
+
+function drawVs(t) {
+  const k = ease(t / 8);
+  rect(ctx, 0, 0, PW, PH, '#2a1638');
+  ctx.fillStyle = PERSIMMON;
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.lineTo(720, 0); ctx.lineTo(560, PH); ctx.lineTo(0, PH);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(246,196,69,.18)';
+  ctx.beginPath();
+  ctx.arc(980, 330, 250, 0, Math.PI * 2);
+  ctx.fill();
+  const me = CHARS[ME.char], bot = CHARS[BOT.char];
+  ctx.save();
+  ctx.translate(320 - (1 - k) * 320, 560);
+  ctx.scale(1.25, 1.25);
+  paintFighter(ctx, me, me.palettes[0], POSES.heavy, 0, 0, 1, { clock: t });
+  ctx.restore();
+  ctx.save();
+  ctx.translate(960 + (1 - k) * 320, 560);
+  ctx.scale(1.25, 1.25);
+  paintFighter(ctx, bot, bot.palettes[0], POSES.castW, 0, 0, -1, { clock: t });
+  ctx.restore();
+  // 名前の帯
+  rect(ctx, 0, 585, PW, 135, 'rgba(21,16,28,.82)');
+  txt(ctx, 'あなた', 60, 662, 64, PAPER);
+  txt(ctx, T(me.name), 64, 700, 24, GOLD, { font: BODY, weight: 900, spacing: 4 });
+  const nameW = measure(ctx, BOT.name, 64);
+  const bx = PW - 60 - nameW - 16 - 112;
+  rect(ctx, bx, 606, 112, 60, GOLD);
+  txt(ctx, 'BOT', bx + 56, 638, 40, INK, { align: 'center', base: 'middle' });
+  txt(ctx, BOT.name, PW - 60, 662, 64, PAPER, { align: 'right' });
+  txt(ctx, `${T(bot.name)}・${T('レート')} ${BOT.rating}`, PW - 60, 700, 24, GOLD, { font: BODY, weight: 900, align: 'right', spacing: 2 });
+  // VS
+  const s = t < 4 ? 0 : 1 + 0.6 * (1 - ease((t - 4) / 8));
+  if (s) {
+    ctx.save();
+    ctx.translate(640, 330);
+    ctx.scale(s, s);
+    txt(ctx, 'VS', 0, 0, 170, GOLD, { align: 'center', base: 'middle', line: 18 });
+    ctx.restore();
+  }
+}
+
+// 対戦中の上に「あなた VS BOT Mina」（動画用の目印。ゲームの画面には出ない）
+function versusTag() {
+  const y = 104;
+  const a = 'あなた', b = BOT.name;
+  const wa = measure(ctx, a, 24, BODY, 900), wb = measure(ctx, b, 26);
+  const w = wa + 22 + 40 + 22 + 60 + 8 + wb + 40;
+  const x = 640 - w / 2;
+  rect(ctx, x, y, w, 44, 'rgba(21,16,28,.82)');
+  txt(ctx, a, x + 20, y + 23, 24, PAPER, { font: BODY, weight: 900, base: 'middle' });
+  txt(ctx, 'VS', x + 20 + wa + 22, y + 23, 22, GOLD, { base: 'middle' });
+  const bx = x + 20 + wa + 22 + 40 + 22;
+  rect(ctx, bx, y + 8, 60, 28, GOLD);
+  txt(ctx, 'BOT', bx + 30, y + 23, 20, INK, { align: 'center', base: 'middle' });
+  txt(ctx, b, bx + 68, y + 23, 26, PAPER, { base: 'middle' });
+}
+
+function drawResult(t) {
+  // 試合はそのまま続く（決着の余韻）。前の場面の続きなので1コマずつ進める
+  clipStep();
+  renderer.draw(cur.s, {});
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  overlay(ease(t / 6));
+  if (t < 3) return;
+  const h = 392, y = 70;
+  panel(y, h);
+  const x = PANEL_X + PAD;
+  let cy = y + 22;
+  cy += h2(x, cy, T('BOT {name} に勝利！', { name: BOT.name })) + 14;
+  const ps = FINAL.ps;
+  const rows = [
+    ['', ...ps.map((p) => T(CHARS[p.char].name))],
+    [T('取ったラウンド'), ...ps.map((p) => p.wins)],
+    [T('最大コンボ'), ...ps.map((p) => T('{n} 連撃', { n: p.stats.maxCombo }))],
+    [T('与えたダメージ'), ...ps.map((p) => p.stats.dmg)],
+    [T('超必殺'), ...ps.map((p) => T('{n} 回', { n: p.stats.supers }))],
+  ];
+  const colX = [x + 8, x + 8 + INNER * 0.4, x + 8 + INNER * 0.7];
+  rows.forEach((row, ri) => {
+    row.forEach((cell, ci) => txt(ctx, String(cell), colX[ci], cy + 24, 16, ri === 0 ? GOLD : PAPER, { font: BODY, weight: ri === 0 ? 900 : 500 }));
+    cy += 34;
+    rect(ctx, x, cy - 1, INNER, 1, '#3b3145');
+  });
+  cy += 10;
+  // レートは「集計中」のあと、サーバーの答えで変わる（main.js の reportBotResult と同じ文）
+  if (t < 30) {
+    txt(ctx, T('レートを集計中…'), x, cy + 22, 20, GOLD, { font: BODY, weight: 900 });
+  } else {
+    const k = ease((t - 30) / 8);
+    const s = T('レート {delta}（{rating}）', { delta: `+${DELTA}`, rating: NEW_RATING });
+    const w = measure(ctx, s, 20, BODY, 900);
+    ctx.save();
+    ctx.globalAlpha = 0.25 + 0.2 * Math.sin(t / 5);
+    rect(ctx, x - 8, cy - 2, w + 16 + 40 * (1 - k), 34, GOLD);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(x, cy + 22);
+    const z = 1 + 0.5 * (1 - k);
+    ctx.scale(z, z);
+    txt(ctx, s, 0, 0, 20, GOLD, { font: BODY, weight: 900 });
+    ctx.restore();
+    // 上がった印（動画用）
+    if (t >= 38) {
+      const up = ease((t - 38) / 10);
+      ctx.globalAlpha = up;
+      txt(ctx, '▲', x + w + 18, cy + 22 - 6 * up, 22, GOLD, { font: BODY, weight: 900 });
+      ctx.globalAlpha = 1;
+    }
+  }
+  cy += 34 + 14;
+  const rw = action(x, cy, T('もう一度探す'));
+  action(x + rw + 8, cy, T('タイトルへ'), { sub: true });
+}
+
+function drawRanking(t) {
+  ctx.drawImage(titleBg, 0, 0);
+  overlay(ease(t / 6));
+  if (t < 3) return;
+  const h = 512, y = 14;
+  panel(y, h);
+  const x = PANEL_X + PAD;
+  let cy = y + 22;
+  cy += h2(x, cy, T('ランキング')) + 14;
+  const cols = [x + 8 + 40, x + 8 + 64, x + 8 + INNER * 0.6, x + 8 + INNER * 0.8];
+  const rowH = 31;
+  rect(ctx, x, cy, INNER, rowH, 'rgba(29,22,38,.9)');
+  [T('順位'), T('名前'), T('レート'), T('勝ち / 試合')].forEach((s, i) => txt(ctx, s, cols[i], cy + 21, 15, GOLD, { font: BODY, weight: 900, align: i === 0 ? 'right' : 'left' }));
+  cy += rowH;
+  rect(ctx, x, cy - 1, INNER, 1, '#3b3145');
+  RANK.forEach((r, i) => {
+    const appear = 6 + i * 5;
+    if (t < appear) return;
+    const k = ease((t - appear) / 8);
+    ctx.save();
+    ctx.globalAlpha = k;
+    ctx.translate((1 - k) * 30, 0);
+    if (r.me && t >= 70) {
+      ctx.globalAlpha = 0.18 + 0.12 * Math.sin(t / 5);
+      rect(ctx, x, cy, INNER, rowH, GOLD);
+      ctx.globalAlpha = k;
+    }
+    const color = r.me ? GOLD : PAPER;
+    const weight = r.me ? 900 : 500;
+    // BOT は人と間違えないよう必ず「BOT」を付ける（main.js の openRanking と同じ）
+    [i + 1, r.bot ? `BOT ${r.name}` : r.name, r.rating, r.bot ? '—' : `${r.wins} / ${r.games}`].forEach((c, ci) => {
+      txt(ctx, String(c), cols[ci], cy + 21, 15, color, { font: BODY, weight, align: ci === 0 ? 'right' : 'left' });
+    });
+    ctx.restore();
+    cy += rowH;
+    rect(ctx, x, cy - 1, INNER, 1, '#3b3145');
+  });
+  cy += 14;
+  if (t >= 56) {
+    ctx.globalAlpha = ease((t - 56) / 8);
+    txt(ctx, T('あなたは {rank}位（レート {rating}）', { rank: MY_RANK, rating: NEW_RATING }), x, cy + 18, 16, GOLD, { font: BODY, weight: 700 });
+    ctx.globalAlpha = 1;
+  }
+  cy += 23 + 14;
+  action(x, cy, T('戻る'), { sub: true });
+}
+
+function drawLogin(t) {
+  ctx.drawImage(titleBg, 0, 0);
+  overlay(1);
+  const x = PANEL_X + PAD;
+  if (t < 44) {
+    const h = 330, y = 105;
+    panel(y, h);
+    let cy = y + 22;
+    cy += h2(x, cy, T('アカウント')) + 14;
+    cy += para(x, cy, T('Google でログインすると、オンラインのランクマッチでレートが付き、ランキングに載ります。ログインしなくても全部遊べます。'), INNER, { size: 16 }) + 10 + 14;
+    const bw = action(x, cy, T('Google でログイン'), { down: t >= 30 });
+    tapRing(ctx, x + bw / 2, cy + 22, t, 30);
+    cy += 43 + 14;
+    txt(ctx, T('プライバシー'), x, cy + 14, 14, 'rgba(245,236,214,.8)', { font: BODY, weight: 500 });
+    rect(ctx, x, cy + 17, measure(ctx, T('プライバシー'), 14, BODY, 500), 1, 'rgba(245,236,214,.8)');
+    action(x, y + h - 22 - 43, T('戻る'), { sub: true });
+  } else {
+    // ログインしたら、ランキングに出す名前を決める
+    const h = 372, y = 84;
+    panel(y, h);
+    let cy = y + 22;
+    cy += h2(x, cy, T('アカウント')) + 14;
+    txt(ctx, T('ランキングに出す名前（2〜12文字）'), x, cy + 16, 16, PAPER, { font: BODY, weight: 700 });
+    cy += 28;
+    const sw = measure(ctx, T('保存'), 18, BODY, 900) + 36;
+    rect(ctx, x, cy, INNER - sw - 8, 43, PAPER);
+    const typed = ME.name.slice(0, Math.max(0, Math.floor((t - 48) / 2)));
+    txt(ctx, typed, x + 10, cy + 22, 20, INK, { font: BODY, weight: 700, base: 'middle' });
+    if (Math.floor(t / 10) % 2) rect(ctx, x + 12 + measure(ctx, typed, 20, BODY, 700), cy + 9, 2, 26, INK);
+    action(x + INNER - sw, cy, T('保存'), { down: t >= 70 && t < 76 });
+    tapRing(ctx, x + INNER - sw / 2, cy + 22, t, 70);
+    cy += 43 + 14;
+    if (t >= 74) txt(ctx, T('レート {rating}・{wins}勝 / {games}試合', { rating: NEW_RATING, wins: 1, games: 1 }), x, cy + 16, 16, PAPER, { font: BODY, weight: 700 });
+    cy += 24 + 14;
+    const lw = chipBtn(x, cy, T('ログアウト'));
+    chipBtn(x + lw + 8, cy, T('アカウントを削除'), { danger: true });
+    action(x, y + h - 22 - 43, T('戻る'), { sub: true });
+  }
+}
+
+// 5言語：同じ結果の文を、ゲームの訳の辞書から出す
+const tr = (dict, key, vars = {}) => (dict ? dict[key] : key).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+const LANG_LINES = [
+  ['日本語', null, DISPLAY, BODY],
+  ['English', TEXT_EN, DISPLAY, BODY],
+  ['Español', TEXT_ES, DISPLAY, BODY],
+  ['简体中文', TEXT_ZH, ZH, ZH],
+  ['한국어', TEXT_KO, KO, KO],
+].map(([label, dict, font, small]) => ({
+  label, font, small,
+  win: tr(dict, 'BOT {name} に勝利！', { name: BOT.name }),
+  rate: tr(dict, 'レート {delta}（{rating}）', { delta: `+${DELTA}`, rating: NEW_RATING }),
+}));
+function drawLangs(t) {
+  rect(ctx, 0, 0, PW, PH, INK);
+  const top = 34, bandH = 96;
+  LANG_LINES.forEach((l, i) => {
+    const appear = i * 9;
+    if (t < appear) return;
+    const k = ease((t - appear) / 10);
+    const y = top + i * (bandH + 8);
+    ctx.save();
+    ctx.translate((1 - k) * -PW * 0.6, 0);
+    rect(ctx, 0, y, PW, bandH, i % 2 ? '#1d1626' : '#241c2d');
+    rect(ctx, 0, y, 10, bandH, PERSIMMON);
+    // 言語ボタン（タイトルの .chip と同じ形）
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = GOLD;
+    ctx.strokeRect(48, y + 30, 170, 38);
+    txt(ctx, l.label, 133, y + 50, 18, GOLD, { font: l.small, weight: 900, align: 'center', base: 'middle' });
+    const heavy = l.font === ZH || l.font === KO ? 900 : '';
+    txt(ctx, l.win, 260, y + 62, 44, PAPER, { font: l.font, weight: heavy });
+    const ww = measure(ctx, l.win, 44, l.font, heavy);
+    txt(ctx, l.rate, 260 + ww + 28, y + 60, 24, GOLD, { font: l.small, weight: 900 });
+    ctx.restore();
+  });
+}
+
+function drawPic(sc, t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (sc.kind === 'online') drawOnline(t);
+  else if (sc.kind === 'select') drawSelect(t);
+  else if (sc.kind === 'vs') drawVs(t);
+  else if (sc.kind === 'clip') { drawBattle(t); versusTag(); }
+  else if (sc.kind === 'result') drawResult(t);
+  else if (sc.kind === 'ranking') drawRanking(t);
+  else if (sc.kind === 'login') drawLogin(t);
+  else if (sc.kind === 'langs') drawLangs(t);
+}
+
+/* ---------- 見せる範囲（大事な所に寄る）。[x, y, 幅, 高さ]（ゲームの画面の座標） ---------- */
+const FULL = [0, 0, PW, PH];
+const PANEL_TALL = [220, 0, 840, 720]; // 縦長では重なった画面（パネル）の幅だけを大きく見せる
+const lerpRect = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
+function viewOf(sc, t) {
+  const panelScene = ['online', 'result', 'ranking', 'login'].includes(sc.kind);
+  let land = FULL;
+  let tall = panelScene ? PANEL_TALL : FULL;
+  if (sc.kind === 'select') {
+    // 見出しの「BOT Mina」に寄ってから、キャラの並びを見せる
+    const k = ease((t - 56) / 16);
+    land = tall = lerpRect([0, 0, 853, 480], FULL, k);
+  }
+  if (sc.kind === 'result') {
+    // レートの数字が出たら寄る
+    const k = ease((t - 36) / 14);
+    land = lerpRect(FULL, [240, 40, 800, 450], k);
+    tall = lerpRect(PANEL_TALL, [240, 36, 640, 549], k);
+  }
+  if (sc.kind === 'ranking') {
+    // 全体を見せてから、自分の行に寄る
+    const k = ease((t - 100) / 14);
+    land = lerpRect(FULL, [240, 120, 800, 450], k);
+    tall = lerpRect(PANEL_TALL, [236, 96, 690, 591], k);
+  }
+  return TALL ? tall : land;
+}
+const zbuf = document.createElement('canvas');
+zbuf.width = PW;
+zbuf.height = PH;
+function zoomLand(v) {
+  if (v.every((x, i) => Math.abs(x - FULL[i]) < 0.01)) return;
+  const z = zbuf.getContext('2d');
+  z.clearRect(0, 0, PW, PH);
+  z.drawImage(pic, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(zbuf, v[0], v[1], v[2], v[3], 0, 0, PW, PH);
+}
+
+/* ---------- 全面の場面（出だしと最後）：動画の大きさに合わせて描く ---------- */
+function sunBackdrop(c, sunX, sunY, r, ridgeY) {
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#2a1638');
+  g.addColorStop(0.62, '#a8342a');
+  g.addColorStop(1, '#f2a53a');
+  c.fillStyle = g;
+  c.fillRect(0, 0, W, H);
+  c.fillStyle = 'rgba(246,196,69,.9)';
+  c.beginPath();
+  c.arc(sunX, sunY, r, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = '#3a1a30';
+  c.beginPath();
+  c.moveTo(0, ridgeY + 40);
+  for (let x = 0; x < W + 80; x += 80) c.lineTo(x, ridgeY + Math.sin(x * 0.011) * 40 + Math.sin(x * 0.031) * 18);
+  c.lineTo(W + 80, H); c.lineTo(0, H);
+  c.fill();
+}
+function brush(c, x, y, w, h, color, k) {
+  // 筆で払ったような帯（k: 0→1 で左から伸びる）
+  c.fillStyle = color;
+  c.beginPath();
+  const len = w * ease(k);
+  c.moveTo(x, y + h * 0.35);
+  c.quadraticCurveTo(x + len * 0.5, y - h * 0.15, x + len, y + h * 0.2);
+  c.lineTo(x + len - 10, y + h * 0.8);
+  c.quadraticCurveTo(x + len * 0.5, y + h * 1.1, x, y + h * 0.75);
+  c.fill();
+}
+function seal(c, x, y, r, label, t, at) {
+  if (t < at) return;
+  const k = ease((t - at) / 6);
+  c.save();
+  c.translate(x, y);
+  c.rotate(-0.12);
+  c.scale(1.8 - 0.8 * k, 1.8 - 0.8 * k);
+  c.globalAlpha = k;
+  c.fillStyle = RED;
+  c.beginPath();
+  c.arc(0, 0, r, 0, Math.PI * 2);
+  c.fill();
+  c.lineWidth = 6;
+  c.strokeStyle = PAPER;
+  c.beginPath();
+  c.arc(0, 0, r - 9, 0, Math.PI * 2);
+  c.stroke();
+  txt(c, label, 0, 4, r * 0.62, PAPER, { align: 'center', base: 'middle' });
+  c.restore();
+}
+function drawIntro(c, t) {
+  c.fillStyle = INK;
+  c.fillRect(0, 0, W, H);
+  const cx = W / 2, cy = TALL ? 820 : 330;
+  const big = TALL ? 168 : 150;
+  const shake = (t >= 30 && t < 40) || (t >= 60 && t < 68) ? (Math.random() - 0.5) * 14 : 0;
+  c.save();
+  c.translate(shake, shake * 0.6);
+  if (t >= 4) {
+    c.globalAlpha = ease((t - 4) / 10);
+    txt(c, '連撃', cx - 10, cy - (TALL ? 230 : 165), TALL ? 96 : 72, PAPER, { align: 'right' });
+    txt(c, 'RENGEKI', cx + 14, cy - (TALL ? 236 : 170), TALL ? 34 : 26, GOLD, { font: BODY, weight: 900, spacing: 8, align: 'left' });
+    c.globalAlpha = 1;
+  }
+  if (t >= 18) brush(c, 60, cy - big * 0.75, W - 120, big * 1.25, RED, (t - 18) / 14);
+  if (t >= 30) {
+    const k = ease((t - 30) / 6);
+    c.save();
+    c.translate(cx, cy + big * 0.12);
+    c.scale(1.4 - 0.4 * k, 1.4 - 0.4 * k);
+    c.globalAlpha = k;
+    txt(c, 'ランクマッチ', 0, 0, big, PAPER, { align: 'center', base: 'middle', line: 16 });
+    c.restore();
+  }
+  if (TALL) seal(c, cx, cy + 270, 96, '開幕', t, 60);
+  else seal(c, cx + 500, cy - 110, 76, '開幕', t, 60);
+  if (t >= 104) {
+    c.globalAlpha = ease((t - 104) / 12);
+    const lines = TALL ? ['世界の誰かと、', 'ブラウザで今すぐ対戦。'] : ['世界の誰かと、ブラウザで今すぐ対戦。'];
+    lines.forEach((l, i) => txt(c, l, cx, (TALL ? cy + 480 : cy + 200) + i * 62, TALL ? 50 : 36, PAPER, { font: BODY, weight: 900, align: 'center', spacing: 4 }));
+    c.globalAlpha = 1;
+  }
+  c.restore();
+}
+function drawEnd(c, t) {
+  const me = CHARS[ME.char], bot = CHARS[BOT.char];
+  if (!TALL) {
+    sunBackdrop(c, 1010, 470, 230, 520);
+    c.save();
+    c.translate(1030, 640);
+    c.scale(0.95, 0.95);
+    paintFighter(c, me, me.palettes[0], POSES.heavy, 0, 0, -1, { clock: t });
+    c.restore();
+    c.fillStyle = 'rgba(21,16,28,.8)';
+    c.fillRect(0, 0, 780, H);
+    txt(c, '連撃', 70, 230, 170, PAPER);
+    txt(c, 'RENGEKI', 78, 290, 34, GOLD, { spacing: 20 });
+    const lines = [['オンライン ランクマッチ開幕', 38], ['ブラウザで今すぐ・無料', 38]];
+    lines.forEach(([l, size], i) => {
+      if (t < 24 + i * 14) return;
+      c.globalAlpha = ease((t - 24 - i * 14) / 10);
+      txt(c, l, 78, 372 + i * 56, size, PAPER, { font: BODY, weight: 900 });
+      c.globalAlpha = 1;
+    });
+    if (t >= 64) {
+      const k = ease((t - 64) / 10);
+      c.save();
+      c.translate(78, 480);
+      c.scale(0.9 + 0.1 * k, 0.9 + 0.1 * k);
+      c.fillStyle = GOLD;
+      c.fillRect(0, 0, 600, 92);
+      txt(c, 'rengeki.pages.dev', 300, 62, 44, INK, { align: 'center' });
+      c.restore();
+      txt(c, 'スマホでもPCでも・ログインなしでも遊べる', 78, 626, 24, PAPER, { font: BODY, weight: 700, spacing: 2 });
+    }
+    return;
+  }
+  sunBackdrop(c, W / 2, 1340, 360, 1480);
+  c.save();
+  c.translate(330, 1830);
+  c.scale(1.45, 1.45);
+  paintFighter(c, me, me.palettes[0], POSES.heavy, 0, 0, 1, { clock: t });
+  c.restore();
+  c.save();
+  c.translate(770, 1830);
+  c.scale(1.45, 1.45);
+  paintFighter(c, bot, bot.palettes[0], POSES.castW, 0, 0, -1, { clock: t });
+  c.restore();
+  c.fillStyle = 'rgba(21,16,28,.8)';
+  c.fillRect(0, 0, W, 1090);
+  txt(c, '連撃', W / 2, 400, 250, PAPER, { align: 'center' });
+  txt(c, 'RENGEKI', W / 2 + 14, 478, 48, GOLD, { align: 'center', spacing: 28 });
+  [['オンライン', 54], ['ランクマッチ開幕', 64], ['ブラウザで今すぐ・無料', 54]].forEach(([l, size], i) => {
+    if (t < 20 + i * 12) return;
+    c.globalAlpha = ease((t - 20 - i * 12) / 10);
+    txt(c, l, W / 2, 610 + i * 78, size, PAPER, { font: BODY, weight: 900, align: 'center' });
+    c.globalAlpha = 1;
+  });
+  if (t >= 64) {
+    const k = ease((t - 64) / 10);
+    c.save();
+    c.translate(W / 2, 840);
+    c.scale(0.9 + 0.1 * k, 0.9 + 0.1 * k);
+    c.fillStyle = GOLD;
+    c.fillRect(-440, 0, 880, 112);
+    txt(c, 'rengeki.pages.dev', 0, 76, 64, INK, { align: 'center' });
+    c.restore();
+    txt(c, 'スマホでもPCでも・ログインなしでも遊べる', W / 2, 1026, 34, PAPER, { font: BODY, weight: 700, align: 'center' });
+  }
+}
+
+/* ---------- 字幕 ---------- */
+// g コマ目に出す字幕（場面に caps がなければ前の場面の字幕を出し続ける）
+function captionAt(g) {
+  let found = null;
+  for (const sc of SCENES) {
+    if (sc.start > g) break;
+    if (sc.full) { found = null; continue; }
+    for (const cp of sc.caps || []) if (sc.start + cp.at <= g) found = { ...cp, start: sc.start + cp.at };
+  }
+  return found;
+}
+function captionLand(g, sc) {
+  const cp = captionAt(g);
+  if (!cp || sc.landNoCap) return;
+  const c = out;
+  const size = cp.cap.length > 13 ? 42 : 50;
+  const tw = Math.max(measure(c, cp.cap, size), measure(c, cp.sub, 22, BODY, 900));
+  const boxW = Math.min(1180, Math.max(560, tw + 120));
+  const k = ease((g - cp.start) / 10);
+  const right = cp.side === 'right';
+  c.save();
+  c.translate((right ? 1 : -1) * boxW * (1 - k), 0);
+  c.fillStyle = 'rgba(21,16,28,.88)';
+  c.beginPath();
+  if (right) { c.moveTo(W, 584); c.lineTo(W - boxW, 584); c.lineTo(W - boxW + 44, 706); c.lineTo(W, 706); }
+  else { c.moveTo(0, 584); c.lineTo(boxW, 584); c.lineTo(boxW - 44, 706); c.lineTo(0, 706); }
+  c.fill();
+  rect(c, right ? W - boxW : 0, 584, boxW, 6, RED);
+  const align = right ? 'right' : 'left';
+  txt(c, cp.cap, right ? W - 40 : 40, 649, size, PAPER, { align });
+  txt(c, cp.sub, right ? W - 42 : 42, 690, 22, GOLD, { font: BODY, weight: 900, spacing: 2, align });
+  c.restore();
+}
+// 縦長：上に字幕、真ん中にゲームの画面、下に新しくなった所の一覧と遊べる場所
+const PIC_MID = 1040;
+function composeTall(g, sc, v) {
+  const c = out;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  const bg = c.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#2a1638');
+  bg.addColorStop(0.3, INK);
+  bg.addColorStop(1, INK);
+  c.fillStyle = bg;
+  c.fillRect(0, 0, W, H);
+  // 上：名前
+  txt(c, '連撃', W / 2 - 10, 96, 56, PAPER, { align: 'right' });
+  txt(c, 'RENGEKI', W / 2 + 14, 90, 28, GOLD, { font: BODY, weight: 900, spacing: 8 });
+  // 字幕
+  const cp = captionAt(g);
+  if (cp) {
+    const k = ease((g - cp.start) / 10);
+    const lines = (cp.tall || cp.cap).split('\n');
+    const y0 = 330 - (lines.length - 1) * 52;
+    c.save();
+    c.globalAlpha = k;
+    c.translate(0, (1 - k) * 30);
+    brush(c, 70, y0 - 100, W - 140, 22, RED, k);
+    lines.forEach((l, i) => txt(c, l, W / 2, y0 + i * 104, 88, PAPER, { align: 'center' }));
+    txt(c, cp.sub, W / 2, y0 + (lines.length - 1) * 104 + 76, 34, GOLD, { font: BODY, weight: 900, align: 'center', spacing: 2 });
+    c.restore();
+  }
+  // 真ん中：ゲームの画面（見せる範囲 v を横幅いっぱいに）
+  const dh = (W * v[3]) / v[2];
+  const dy = PIC_MID - dh / 2;
+  rect(c, 0, dy - 6, W, 6, PAPER);
+  c.drawImage(pic, v[0], v[1], v[2], v[3], 0, dy, W, dh);
+  rect(c, 0, dy + dh, W, 6, PAPER);
+  // 新しくなったところの一覧（今の場面を光らせる）
+  const chipY = 1545;
+  const ws = FEATS.map((f) => measure(c, f, 32, BODY, 900) + 40);
+  let x = (W - (ws.reduce((a, b) => a + b, 0) + 14 * (FEATS.length - 1))) / 2;
+  FEATS.forEach((f, i) => {
+    const on = sc.feat === i;
+    if (on) rect(c, x, chipY, ws[i], 60, GOLD);
+    else { c.lineWidth = 3; c.strokeStyle = '#4b3f57'; c.strokeRect(x + 1.5, chipY + 1.5, ws[i] - 3, 57); }
+    txt(c, f, x + ws[i] / 2, chipY + 31, 32, on ? INK : PAPER_DIM, { font: BODY, weight: 900, align: 'center', base: 'middle' });
+    x += ws[i] + 14;
+  });
+  // 下：遊べる場所
+  txt(c, 'ブラウザで今すぐ・無料', W / 2, 1686, 42, PAPER, { font: BODY, weight: 900, align: 'center', spacing: 2 });
+  rect(c, W / 2 - 380, 1716, 760, 100, GOLD);
+  txt(c, 'rengeki.pages.dev', W / 2, 1784, 56, INK, { align: 'center' });
+}
+
+/* ---------- 時間の進め方 ---------- */
+let sceneIdx = -1;
+let flash = 0;
+const cue = (t, at, fn) => { if (t === at && STILL === null) fn(); };
+function frame(g) {
+  let n = SCENES.findIndex((sc) => g >= sc.start && g < sc.start + sc.len);
+  if (n < 0) n = SCENES.length - 1;
+  const sc = SCENES[n];
+  if (n !== sceneIdx) {
+    sceneIdx = n;
+    if (sc.kind === 'clip') enterClip(sc);
+    flash = sc.kind === 'result' ? 0.5 : 1;
+  }
+  const t = g - sc.start;
+  if (sc.kind === 'online') { cue(t, 40, () => playSound('ui')); }
+  if (sc.kind === 'select') { cue(t, 84, () => playSound('ui')); }
+  if (sc.kind === 'vs') { cue(t, 4, () => playSound('h')); }
+  if (sc.kind === 'result') { cue(t, 30, () => playSound('fight')); }
+  if (sc.kind === 'login') { cue(t, 30, () => playSound('ui')); cue(t, 70, () => playSound('ui')); }
+  out.setTransform(1, 0, 0, 1, 0, 0);
+  if (sc.full) {
+    if (sc.kind === 'intro') drawIntro(out, t);
+    else drawEnd(out, t);
+  } else {
+    drawPic(sc, t);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const v = viewOf(sc, t);
+    if (TALL) composeTall(g, sc, v);
+    else { zoomLand(v); captionLand(g, sc); }
+  }
+  if (flash > 0) {
+    out.setTransform(1, 0, 0, 1, 0, 0);
+    out.fillStyle = `rgba(255,250,235,${flash * 0.7})`;
+    out.fillRect(0, 0, W, H);
+    flash = Math.max(0, flash - 0.25);
+  }
+  out.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+/* ---------- 太鼓っぽい BGM（tools/trailer.html と同じ作り。ファイルを使わず合成） ---------- */
+function scheduleMusic(ac, dest, t0) {
+  const beat = 60 / 150;
+  const noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  const bus = ac.createGain();
+  bus.gain.value = 0.9;
+  bus.connect(dest);
+  const hiss = (at, dur, freq, vol, type = 'bandpass') => {
+    const src = ac.createBufferSource();
+    src.buffer = noiseBuf;
+    const f = ac.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(vol, at);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    src.connect(f).connect(g).connect(bus);
+    src.start(at, Math.random() * 0.5); src.stop(at + dur + 0.02);
+  };
+  const don = (at, vol = 1) => {
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, at);
+    o.frequency.exponentialRampToValueAtTime(46, at + 0.32);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.9 * vol, at + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+    o.connect(g).connect(bus);
+    o.start(at); o.stop(at + 0.55);
+    hiss(at, 0.06, 900, 0.35 * vol);
+  };
+  const ka = (at, vol = 0.35) => hiss(at, 0.05, 3200, vol, 'highpass');
+  const pluck = (at, semi, vol = 0.16, dur = 0.32) => {
+    const f = 293.66 * Math.pow(2, semi / 12);
+    for (const [type, mul, v] of [['triangle', 1, 1], ['sawtooth', 2, 0.25]]) {
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(3200, at);
+      lp.frequency.exponentialRampToValueAtTime(600, at + dur);
+      o.type = type;
+      o.frequency.value = f * mul;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(vol * v, at + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      o.connect(lp).connect(g).connect(bus);
+      o.start(at); o.stop(at + dur + 0.05);
+    }
+  };
+  const crash = (at, vol = 0.5) => hiss(at, 1.4, 6000, vol, 'highpass');
+  const endAt = SCENES[SCENES.length - 1].start / BAR; // 最後の場面が始まる小節（半端でもよい）
+  const bars = Math.ceil(endAt);
+  const RIFF = [12, null, 10, 7, null, 5, 7, null, 12, null, 10, 12, 15, null, 12, null];
+  const RIFF2 = [7, null, 5, 3, null, 0, 3, 5, 7, null, 10, 7, 12, null, null, null];
+  for (let b = 0; b < bars; b++) {
+    const bt = t0 + b * 4 * beat;
+    const sceneAt = SCENES.find((sc) => Math.abs(sc.start - b * BAR) < 1 && sc.caps);
+    if (b < 2) {
+      // 出だし：「ランクマッチ」「開幕」に合わせた大太鼓
+      if (b === 0) { ka(bt + 0.5 * beat, 0.2); don(bt + 1.25 * beat, 1.2); don(bt + 2.5 * beat, 1.2); crash(bt + 2.5 * beat, 0.25); }
+      else { for (let i = 0; i < 4; i++) ka(bt + i * beat, 0.2); don(bt + 3 * beat + beat / 2, 0.7); }
+      continue;
+    }
+    // 最後の場面の手前で小節が切れるときは、その手前までだけ鳴らす
+    const room = Math.min(4, (endAt - b) * 4) * beat;
+    const at = (e) => (e * beat < room - 0.01 ? bt + e * beat : null);
+    if (sceneAt) crash(bt, 0.32);
+    for (const [e, v] of [[0, 1], [1.5, 0.7], [2, 0.9], [3.5, 0.6]]) if (at(e) !== null) don(at(e), v);
+    for (const e of [1, 2.5, 3]) if (at(e) !== null) ka(at(e), 0.3);
+    for (let i = 0; i < 8; i++) if (at(i / 2) !== null) hiss(at(i / 2), 0.03, 8000, 0.08, 'highpass');
+    const riff = (b % 4 < 2 ? RIFF : RIFF2);
+    for (let i = 0; i < 8; i++) {
+      const semi = riff[(b % 2) * 8 + i];
+      if (semi !== null && at(i / 2) !== null) pluck(at(i / 2), semi);
+    }
+    pluck(bt, b % 4 === 3 ? -2 : -12, 0.14, Math.min(1.4, room));
+  }
+  // 最後：大きく1発鳴らして、余韻
+  const te = t0 + endAt * 4 * beat;
+  don(te, 1.3); crash(te, 0.5); pluck(te, 12, 0.2, 1.2); pluck(te, 0, 0.14, 1.4);
+  don(te + 6 * beat, 0.6); ka(te + 7 * beat, 0.2);
+}
+
+/* ---------- 実行 ---------- */
+// 日本語の字体は字ごとに分けて配られるので、使う字を全部指定して読み込む
+const sources = await Promise.all([location.pathname, '../src/render.js'].map((u) => fetch(u).then((r) => r.text()).catch(() => '')));
+const extra = [
+  ...LANG_LINES.flatMap((l) => [l.label, l.win, l.rate]),
+  ...CHAR_IDS.flatMap((id) => [T(CHARS[id].name), T(CHARS[id].title), CHARS[id].kana, ...Object.keys(CHARS[id].stats)]),
+  JSON.stringify(CHARS[ME.char]), JSON.stringify(CHARS[BOT.char]),
+  ...selectHeading(), ...RANK.map((r) => r.name),
+].join('');
+const allChars = [...new Set(sources.join('') + extra + '0123456789')].filter((ch) => ch > ' ').join('');
+const zhChars = LANG_LINES[3].label + LANG_LINES[3].win + LANG_LINES[3].rate + '中文';
+const koChars = LANG_LINES[4].label + LANG_LINES[4].win + LANG_LINES[4].rate;
+await Promise.all([
+  document.fonts.load(`80px "Dela Gothic One"`, allChars),
+  ...[500, 700, 900].map((w) => document.fonts.load(`${w} 30px "Zen Kaku Gothic New"`, allChars)),
+  ...[700, 900].map((w) => document.fonts.load(`${w} 30px "Noto Sans SC"`, zhChars)),
+  ...[700, 900].map((w) => document.fonts.load(`${w} 30px "Noto Sans KR"`, koChars)),
+]).catch(() => {});
+paintTitleBg();
+paintPortraits();
+
+if (STILL !== null) {
+  // shots=100,300 なら、そのコマを PNG で録画用のサーバーに送る（record-trailer.mjs --shots）
+  const shots = new Set((params.get('shots') || '').split(',').filter(Boolean).map(Number));
+  for (let g = 0; g <= STILL; g++) {
+    frame(g);
+    if (shots.has(g)) {
+      const png = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+      await fetch(`/shot?g=${g}`, { method: 'POST', body: png });
+    }
+  }
+  document.title = 'ready';
+} else {
+  const play = async () => {
+    const tap = audioTap();
+    const ac = tap && tap.ctx;
+    if (ac && ac.state !== 'running') await ac.resume().catch(() => {});
+    let recorder = null;
+    let videoTrack = null;
+    const chunks = [];
+    let type = '';
+    if (RECORD) {
+      // 描いたコマを1枚ずつ自分で渡す（自動で拾わせると、画面なしの Edge ではコマが落ちる）
+      videoTrack = canvas.captureStream(0).getVideoTracks()[0];
+      const stream = new MediaStream([videoTrack, ...(tap ? tap.stream.getAudioTracks() : [])]);
+      type = ['video/mp4;codecs="avc1.640028,mp4a.40.2"', 'video/mp4', 'video/webm;codecs="vp9,opus"', 'video/webm']
+        .find((t) => MediaRecorder.isTypeSupported(t));
+      recorder = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: Number(params.get('vbr')) || (TALL ? 12e6 : 8e6), audioBitsPerSecond: 192e3 });
+      recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      recorder.start(1000);
+    }
+    const push = () => { if (videoTrack) videoTrack.requestFrame(); };
+    sceneIdx = -1;
+    frame(0);
+    push();
+    // コマ送りはなめらかな performance.now で数える（音の時計は細かく飛ぶため）。BGM は同じ瞬間に始める
+    const t0 = performance.now() / 1000 + 0.15;
+    if (ac && ac.state === 'running') scheduleMusic(ac, tap.master, ac.currentTime + 0.15);
+    let shown = 0;
+    await new Promise((done) => {
+      const loop = () => {
+        const g = Math.floor((performance.now() / 1000 - t0) * 60);
+        while (shown < g && shown < TOTAL) { frame(++shown); push(); }
+        if (shown >= TOTAL) { done(); return; }
+        setTimeout(loop, 4);
+      };
+      loop();
+    });
+    if (recorder) {
+      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => { recorder.onstop = r; recorder.stop(); });
+      const blob = new Blob(chunks, { type });
+      await fetch('/upload', { method: 'POST', headers: { 'Content-Type': type }, body: blob });
+      document.title = 'uploaded';
+    }
+  };
+  if (RECORD) play();
+  else {
+    frame(0);
+    canvas.addEventListener('pointerdown', () => play(), { once: true });
+  }
+}
+</script></body></html>
