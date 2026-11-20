@@ -1088,7 +1088,7 @@ async function openRanking() {
   }
   if ($('#ranking').hidden) return;
   const { profile } = account();
-  status.textContent = data.rows.length ? '' : T('まだ誰もいません。ランダム対戦で最初の1人になろう');
+  status.textContent = data.rows.length ? '' : T('まだ誰もいません。ランクマッチで最初の1人になろう');
   if (data.rows.length) {
     const head = document.createElement('tr');
     [T('順位'), T('名前'), T('レート'), T('勝ち / 試合')].forEach((c) => {
@@ -1109,8 +1109,8 @@ async function openRanking() {
     });
     body.append(tr);
   }
-  if (!account().user) me.textContent = T('ログインすると、ランダム対戦の結果でランキングに載ります');
-  else if (!data.myRank) me.textContent = T('ランダム対戦で1試合すると載ります');
+  if (!account().user) me.textContent = T('ログインすると、ランクマッチの結果でランキングに載ります');
+  else if (!data.myRank) me.textContent = T('ランクマッチで1試合すると載ります');
   else me.textContent = T('あなたは {rank}位（レート {rating}）', { rank: data.myRank, rating: profile ? profile.rating : '' });
   me.hidden = false;
 }
