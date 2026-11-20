@@ -119,11 +119,24 @@ export async function deleteAccount() {
   await signOut();
 }
 
+// サーバーが名前を断った理由（エラーの文）を、画面に出す種類にする
+export function nameErrorCode(message) {
+  return { 'name taken': 'taken', 'name is fixed': 'fixed', 'name reserved': 'reserved', 'name invalid': 'invalid' }[message] || 'other';
+}
+
+// 「BOT」で始まる名前か（人と BOT を見分けるため使えない。「Botan」のような名前は使える）。サーバーと同じ決まり
+export function looksLikeBotName(name) {
+  return /^bot([^a-z]|$)/.test(String(name || '').trim().normalize('NFKC').toLowerCase());
+}
+
+// 名前（＝ID）を登録する。ほかの人と同じ名前は使えず、登録したあとは変えられない（サーバーが決める）。
+// だめなら Error(種類) を投げる：taken / fixed / reserved / invalid / other
 export async function saveName(name) {
   const v = validName(name);
-  if (!v) throw new Error('name');
+  if (!v) throw new Error('invalid');
+  if (looksLikeBotName(v)) throw new Error('reserved');
   const { data, error } = await rpcCall('set_name', { p_name: v });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(nameErrorCode(error.message));
   setAccount({ profile: data });
   return data;
 }

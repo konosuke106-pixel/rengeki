@@ -80,3 +80,23 @@ test('ログインしていない人の BOT は、レートが一番近い1体�
   assert.equal(pickGuestBot(bots, 900).id, 'a');
   assert.equal(pickGuestBot([]), null);
 });
+
+import { nameErrorCode, looksLikeBotName } from '../src/account.js';
+
+test('サーバーが名前を断った理由を、画面に出す種類に分ける', () => {
+  assert.equal(nameErrorCode('name taken'), 'taken');
+  assert.equal(nameErrorCode('name is fixed'), 'fixed');
+  assert.equal(nameErrorCode('name reserved'), 'reserved');
+  assert.equal(nameErrorCode('name invalid'), 'invalid');
+  assert.equal(nameErrorCode('Failed to fetch'), 'other');
+  assert.equal(nameErrorCode(undefined), 'other');
+});
+
+test('「BOT」で始まる名前は登録する前に分かる（「Botan」は普通の名前）', () => {
+  assert.equal(looksLikeBotName('BOT Kagari'), true);
+  assert.equal(looksLikeBotName('bot_1'), true);
+  assert.equal(looksLikeBotName('ＢＯＴ'), true);
+  assert.equal(looksLikeBotName('Bot'), true);
+  assert.equal(looksLikeBotName('Botan'), false);
+  assert.equal(looksLikeBotName('カガリ'), false);
+});

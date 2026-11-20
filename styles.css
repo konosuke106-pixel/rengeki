@@ -269,6 +269,8 @@ kbd { font-family: inherit; font-weight: 700; color: var(--gold); }
 /* アカウント */
 .account-panel p { margin: 0 0 1.4vh; }
 .account-panel label { display: block; margin-bottom: .6vh; font-weight: 700; }
+.account-note { font-size: .9em; opacity: .85; }
+.account-name { font-size: clamp(16px, 4vh, 22px); font-weight: 900; }
 .account-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 1vh; }
 .chip.danger { border-color: #c0392b; color: #ff8a7a; }
 .chip.danger.armed { background: #c0392b; color: #fff; }

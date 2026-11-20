@@ -29,7 +29,7 @@
 - コンボ：弱→中→強→必殺→超必殺、打ち上げ→空中コンボ、叩きつけバウンド
 - ガード、投げと投げ抜け、ダッシュ、飛び道具、カウンター、アーマー
 - 長いコンボほどダメージとのけぞりが減る
-- テスト176件が通過。キーボード、画面ボタンの押下、結果画面まではブラウザで確認済み
+- テスト178件が通過。キーボード、画面ボタンの押下、結果画面まではブラウザで確認済み
 - オンライン対戦を公開済み（部屋コード、巻き戻し同期、再戦、切断の処理）。`src/rollback.js` と `src/net.js`
   - 通信は、部屋での出会いに Supabase Realtime、対戦中は可能なら WebRTC 直結、だめなら Supabase 中継。DB は使わない
   - 確認は同じPC内の2画面のみ。公開ページで直結、本物のサーバーで中継を試し、食い違いなし（`tools/duo.html` で再現できる）
@@ -70,6 +70,7 @@
   - 問い合わせ先は個人の Gmail を出さないため Google グループ `rengeki-support@googlegroups.com`（本人の Gmail に届く。誰でも送れて、読めるのはメンバーだけ）。Google の同意画面のサポートメールと連絡先もこれ
   - Supabase のダッシュボードは「メールとパスワード」で入る方のアカウント（組織 `starboy`）。GitHub で入る `konosuke106-pixel` の方には rengeki がない
   - サーバーのテストは `supabase/tests/ranking.sql`（Supabase で流す。最後に rollback。`ALL OK` で合格）
+- 名前＝ID（2026-11-21）：表示名は一度登録したら変えられず、ほかの人と同じ名前は使えない（全角半角・大文字小文字・前後の空白の違いは同じとみなす。`profiles.name_key` に一意の索引、作り方は `public.name_key`）。BOT の名前と「BOT」で始まる名前（`^bot` の後が英字以外。「Botan」は可）は使えない。サーバーの `set_name` が断る理由は `name taken / name is fixed / name reserved / name invalid`、ゲームは `account.js` の `nameErrorCode` で画面の文にする。登録は2回押し（1回目に「あとから変えられません」）、登録後のアカウント画面は名前を表示だけ。アカウントを削除すると名前は空く。テストは `supabase/tests/names.sql`
 - ランクマッチの BOT（2026-11-21）：人が10秒（`RANDOM_WAIT_MS`）見つからなければ BOT と対戦。BOT は10体（`bots` 表：Koro〜Kuro、キャラ・CPU の強さ・決まったレート1100〜1850。レートは動かない）。名前の前に必ず「BOT」（キャラ選択の見出し・結果・ランキング）。ステージは BOT のキャラのステージ、ギミックあり
   - ログイン＋名前ありならレートが動く：Edge Function `bot-match`（`supabase/functions/bot-match/index.ts`）が BOT と種を決め（`bot_start`）、試合は手元で CPU 戦として動かして自分の入力を毎コマ記録（`src/replay.js` の `encodeInputs`）、決着したら記録を送り、サーバーが同じ試合を再生して（`replayBotMatch`）勝ち負けを決め（`judge.js`）、`bot_finish` で Elo を動かす。版が違えば void、壊れた記録・早すぎる結果（試合の長さの8割より早い）は負け、20分届かなければ負け、同じ BOT は1日5回まで。BOT 戦も試合数・勝ち数に入る。ゲストや版違いは手元の BOT（レートなし）
   - Edge Function はゲームの戦闘コードの写し（`game/`、`tools/make-bot-function.mjs` が作る。git には入れない）を使う。`main` に push すると `.github/workflows/bot-function.yml` が配置し直す（秘密 `SUPABASE_ACCESS_TOKEN`：Supabase のアクセストークン `github-actions-bot-match`。期限なし・rengeki だけ・Edge Functions の読み書きと Project Settings の読み取りだけ。2026-11-21 登録済み）。サーバーのテストは `supabase/tests/bots.sql`。本番で本人がログインして BOT Mina（1450）に勝ち、サーバーの再生でも勝ちと判定されて +17（1517）になるのを確認済み（2026-11-21）

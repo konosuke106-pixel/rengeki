@@ -1213,7 +1213,13 @@ function fillAccount() {
   $('#account-user').hidden = !user;
   $('#btn-login-google').disabled = !onlineAvailable();
   if (user) {
-    if (document.activeElement !== $('#name-input')) $('#name-input').value = profile ? profile.name : '';
+    // 名前（＝ID）は一度登録したら変えられないので、登録後は表示だけ
+    $('#account-name-form').hidden = !!profile;
+    $('#account-name').hidden = !profile;
+    if (profile) $('#account-name').textContent = profile.name;
+    const save = $('#btn-name-save');
+    save.classList.remove('armed');
+    save.textContent = T('登録する');
     $('#account-stats').textContent = profile
       ? T('レート {rating}・{wins}勝 / {games}試合', { rating: profile.rating, wins: profile.wins, games: profile.games })
       : T('まずランキングに出す名前を決めてね');
@@ -1243,17 +1249,43 @@ bind('#btn-login-google', async () => {
     accountMsg(T('ログインできませんでした。時間をおいてもう一度試してね'));
   }
 });
+const NAME_ERRORS = {
+  taken: TX('その名前はもう使われています'),
+  fixed: TX('名前はもう登録されていて、変えられません'),
+  reserved: TX('「BOT」で始まる名前や、BOT と同じ名前は使えません'),
+  invalid: TX('名前は2〜12文字にしてね（見えない文字は使えません）'),
+  other: TX('登録できませんでした。時間をおいてもう一度試してね'),
+};
 bind('#btn-name-save', async () => {
+  const save = $('#btn-name-save');
   const name = validName($('#name-input').value);
   if (!name) {
-    accountMsg(T('名前は2〜12文字にしてね'));
+    accountMsg(T(NAME_ERRORS.invalid));
     return;
   }
+  // 名前は変えられないので、2回押して登録（1回目で注意を出す）
+  if (!save.classList.contains('armed')) {
+    save.classList.add('armed');
+    save.textContent = T('もう一度押すと登録（あとから変えられません）');
+    accountMsg(T('「{name}」で登録します。あとから変えられません', { name }));
+    return;
+  }
+  save.disabled = true;
   try {
     await saveName(name);
-    accountMsg(T('保存しました'));
-  } catch {
-    accountMsg(T('保存できませんでした。時間をおいてもう一度試してね'));
+    accountMsg(T('登録しました'));
+  } catch (err) {
+    fillAccount();
+    accountMsg(T(NAME_ERRORS[err.message] || NAME_ERRORS.other));
+  } finally {
+    save.disabled = false;
+  }
+});
+$('#name-input').addEventListener('input', () => {
+  const save = $('#btn-name-save');
+  if (save.classList.contains('armed')) {
+    save.classList.remove('armed');
+    save.textContent = T('登録する');
   }
 });
 $('#name-input').addEventListener('keydown', (e) => {
