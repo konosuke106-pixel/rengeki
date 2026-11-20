@@ -125,7 +125,8 @@ function updateSelectHeading() {
   };
   if (app.mode === 'bot') {
     const b = app.bot.bot;
-    $('#select-heading').textContent = T('BOT {name}（レート {rating}）と対戦。あなたのキャラを選ぶ', { name: b.name, rating: b.rating });
+    $('#select-heading').textContent = T('BOT {name}（レート {rating}）と対戦。あなたのキャラを選ぶ', { name: b.name, rating: b.rating })
+      + (app.bot.matchId ? T('（レートの付く試合。途中でやめると負けになります）') : '');
   } else {
     $('#select-heading').textContent = T(labels[app.mode][app.picking]);
   }
@@ -529,7 +530,8 @@ function showResult(s) {
     title.textContent = T('引き分け');
   } else {
     const ch = CHARS[s.ps[win].char];
-    if (app.mode === 'cpu' || app.mode === 'bot') title.textContent = win === 0 ? T('勝利！') : T('敗北…');
+    if (app.mode === 'bot') title.textContent = win === 0 ? T('BOT {name} に勝利！', { name: app.bot.bot.name }) : T('BOT {name} に敗北…', { name: app.bot.bot.name });
+    else if (app.mode === 'cpu') title.textContent = win === 0 ? T('勝利！') : T('敗北…');
     else if (app.mode === 'online') title.textContent = win === (app.net.host ? 0 : 1) ? T('勝利！') : T('敗北…');
     else title.textContent = T('{n}P {name} の勝ち', { n: win + 1, name: T(ch.name) });
   }
@@ -587,7 +589,8 @@ function togglePause(force) {
   input.releaseAll();
   // オンラインでは止められない。メニューを開いている間も試合は進む
   $('#btn-retry').hidden = app.mode === 'online' || app.mode === 'bot';
-  $('#pause h2').textContent = app.mode === 'online' ? T('試合は続いています') : T('一時停止');
+  $('#pause h2').textContent = app.mode === 'online' ? T('試合は続いています')
+    : app.mode === 'bot' && app.bot && app.bot.matchId ? T('一時停止（やめると負けになります）') : T('一時停止');
   if (app.paused) fillMoveList();
   app.last = performance.now();
 }
@@ -671,6 +674,8 @@ async function randomToBot() {
   stopRandom();
   closeLink();
   $('#online-status').textContent = T('BOT を探しています…');
+  // サーバーが BOT 戦を作り始めたら取り消せない（取り消すと誰にも見えない負けが残る）ので、決まるまで「戻る」を止める
+  $('#btn-online-close').disabled = true;
   let info = null;
   if (rankedUid()) info = await startBotMatch(NET_VERSION);
   let bot = null;
@@ -683,6 +688,7 @@ async function randomToBot() {
     bot = pickGuestBot(await listBots().catch(() => []), (account().profile && account().profile.rating) || 1500);
     seed = (Date.now() % 2147483000) + 1;
   }
+  $('#btn-online-close').disabled = false;
   $('#online').hidden = true;
   if (!bot || !CHARS[bot.char]) {
     openSelect('cpu');

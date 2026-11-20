@@ -407,4 +407,8 @@ export const TEXT_ES = {
   "BOT {name}（レート {rating}）と対戦。あなたのキャラを選ぶ": "Contra el BOT {name} (puntuación {rating}). Elige tu luchador",
   "もう一度探す": "Buscar otra vez",
   "ゲームの更新中のため、今回はレートが動きません": "El juego se está actualizando: esta vez tu puntuación no cambiará",
+  "（レートの付く試合。途中でやめると負けになります）": " (Partida puntuada: abandonar cuenta como derrota)",
+  "BOT {name} に勝利！": "¡Ganaste al BOT {name}!",
+  "BOT {name} に敗北…": "Perdiste contra el BOT {name}…",
+  "一時停止（やめると負けになります）": "Pausa (abandonar cuenta como derrota)",
 };

@@ -5,7 +5,8 @@ import { createMatch, step } from './sim.js';
 import { createCpu } from './ai.js';
 import { CHARS } from './characters.js';
 
-export const REPLAY_MAX_FRAMES = 21600; // 6分。試合はこれより前に必ず決着する
+// 受け付ける記録の長さの上限。最長の試合（5ラウンドすべて時間切れ・ラウンドの間の演出・超必殺の暗転）でも約3万2千コマ
+export const REPLAY_MAX_FRAMES = 40000;
 
 // 毎コマの押しボタンを、同じ値が続く所をまとめて短い文字にする（「値*回数」を . でつなぐ、36進）
 export function encodeInputs(masks) {

@@ -56,3 +56,11 @@ test('壊れた記録・知らないキャラ・途中で尽きる記録は inva
   assert.equal(judgeBotMatch({ ...base, playerChar: 'nobody', bot, seed: 3, inputs: '0*10' }), 'invalid');
   assert.equal(judgeBotMatch({ ...base, playerChar: 'kagari', bot, seed: 3, inputs: '0*gg' }), 'invalid'); // 592コマだけでは決着しない
 });
+
+test('試合にかかるはずの時間より早く届いた結果は、ズルとして負け（手元で何千通りも試してから送るのを防ぐ）', () => {
+  const bot = { char: 'rai', level: 'easy' };
+  const g = play('kagari', bot, 100, 200, 'hard');
+  const frames = replayBotMatch({ playerChar: 'kagari', bot, seed: 100, inputs: decodeInputs(g.inputs) }).frames;
+  assert.equal(judgeBotMatch({ ...base, playerChar: 'kagari', bot, seed: 100, inputs: g.inputs, elapsedSec: frames / 60 / 4 }), 'invalid');
+  assert.equal(judgeBotMatch({ ...base, playerChar: 'kagari', bot, seed: 100, inputs: g.inputs, elapsedSec: frames / 60 + 5 }), g.winner === 0 ? 'win' : 'loss');
+});

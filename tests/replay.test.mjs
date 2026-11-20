@@ -64,3 +64,8 @@ test('入力が途中で尽きて決着しない記録は null', () => {
   assert.equal(replayBotMatch({ playerChar: 'shizuku', bot, seed: 8, inputs: local.log.slice(0, 600) }), null);
   assert.equal(replayBotMatch({ playerChar: 'nobody', bot, seed: 8, inputs: local.log }), null);
 });
+
+test('5ラウンドすべて時間切れの長い試合（約3万コマ）でも、記録を受け付ける', () => {
+  assert.ok(REPLAY_MAX_FRAMES >= 36000, `上限 ${REPLAY_MAX_FRAMES}`);
+  assert.equal(decodeInputs(encodeInputs(new Array(32000).fill(0))).length, 32000);
+});

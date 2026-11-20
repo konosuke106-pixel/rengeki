@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
   }
 
   if (body.action === 'finish') {
-    const { data: m } = await service.from('bot_matches').select('id, player, bot, seed, version, result')
+    const { data: m } = await service.from('bot_matches').select('id, player, bot, seed, version, result, created_at')
       .eq('id', String(body.match_id || '')).maybeSingle();
     if (!m || m.player !== user.id || m.result) return json({ result: null });
     const { data: b } = await service.from('bots').select('fighter, level').eq('id', m.bot).single();
@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
       fnVersion: GAME_VERSION, startVersion: m.version, sentVersion: body.version, playerChar,
       inputs: body.inputs, bot: { char: b.fighter, level: b.level }, seed: m.seed,
       decode: decodeInputs, replay: replayBotMatch,
+      elapsedSec: (Date.now() - Date.parse(m.created_at)) / 1000,
     });
     const { data, error } = await service.rpc('bot_finish', { p_match: m.id, p_player: user.id, p_result: result });
     if (error || !data) return json({ result: null });
