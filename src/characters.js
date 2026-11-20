@@ -6,14 +6,18 @@ const CHARGE_MAX = 60; // 溜め強を最大まで溜めるコマ数（1秒）
 
 const hitbox = (startup, active, box, data) => ({ from: startup + 1, to: startup + active, box, ...data });
 
-function normals({ sp = 0, r = 1, d = 1 }) {
+// 通常技の作り方。sp＝出の速さの増減（コマ）、r＝リーチの倍率、d＝威力の倍率、rec＝地上の技の隙を増やすコマ数。
+// リーチ・威力・速さ・隙の釣り合いの決まり（node tools/reach.mjs で点数が出る）：
+//   リーチ1割長い ＝ 威力2割高い ＝ 発生1コマ速い ＝ 隙3コマ短い を、どれも「1点の得」と数え、
+//   カガリ（0点）を基準に、通常技の合計を 0点（±0.5）に収める。リーチが長いキャラは、威力・速さ・隙のどれかで払う
+function normals({ sp = 0, r = 1, d = 1, rec = 0 }) {
   const R = (v) => Math.round(v * r);
   const D = (v) => Math.round(v * d);
   const S = (v) => Math.max(3, v + sp);
   const box = (x, y, w, h) => [R(x), y, R(w), h];
   const n = (id, name, rank, su, ac, rc, bx, data, wind, act, extra = {}) => ({
     id, name, rank,
-    total: S(su) + ac + rc,
+    total: S(su) + ac + rc + (extra.air ? 0 : rec),
     boxes: [hitbox(S(su), ac, bx, { ...data, dmg: D(data.dmg) })],
     anim: [[0, wind], [Math.max(1, S(su) - 1), act], [S(su) + ac + 2, extra.back || wind]],
     ...extra,
@@ -57,10 +61,10 @@ const kagariMoves = {
   spF: {
     id: 'spF', name: '烈破蹴', rank: 4, total: 40,
     boxes: [
-      hitbox(9, 4, [66, 56, 96, 74], { dmg: 50, stun: 30, block: 12, kb: 1, lv: 'm', hs: 7, fx: 'm' }),
-      hitbox(18, 5, [78, 70, 112, 84], { dmg: 75, stun: 30, block: 18, kb: 9, lv: 'm', launch: 12, kd: true, wall: true, hs: 11, fx: 'h', chip: 6 }),
+      hitbox(9, 4, [66, 56, 96, 74], { dmg: 45, stun: 30, block: 12, kb: 1, lv: 'm', hs: 7, fx: 'm' }),
+      hitbox(18, 5, [78, 70, 112, 84], { dmg: 55, stun: 30, block: 7, kb: 9, lv: 'm', launch: 12, kd: true, wall: true, hs: 11, fx: 'h', chip: 6 }),
     ],
-    motion: [{ from: 6, to: 20, vx: 12 }],
+    motion: [{ from: 6, to: 20, vx: 9.5 }],
     anim: [[0, 'dashF'], [8, 'kickM'], [17, 'heavy'], [26, 'idle']],
   },
   super: {
@@ -74,7 +78,7 @@ const kagariMoves = {
 };
 
 const goutetsuMoves = {
-  ...normals({ sp: 2, r: 1.16, d: 1.3 }),
+  ...normals({ sp: 2, r: 1.13, d: 1.3 }),
   spN: {
     id: 'spN', name: '鉄塊突', rank: 4, total: 52, armor: [3, 18],
     boxes: [hitbox(17, 6, [96, 70, 128, 84], { dmg: 120, stun: 28, block: 20, kb: 8, lv: 'm', launch: 11, kd: true, wall: true, hs: 13, fx: 'h', chip: 8 })],
@@ -133,7 +137,7 @@ const shizukuMoves = {
 
 // ライ：長い棒で間合いを制する。雷を落とす
 const raiMoves = {
-  ...normals({ sp: 1, r: 1.3, d: 1.02 }),
+  ...normals({ sp: 1, r: 1.22, d: 0.92, rec: 3 }),
   spN: {
     id: 'spN', name: '雷突', rank: 4, total: 46,
     boxes: [hitbox(14, 4, [150, 84, 170, 40], { dmg: 95, stun: 26, block: 18, kb: 10, lv: 'm', launch: 10, kd: true, wall: true, hs: 12, fx: 'h', chip: 8 })],
@@ -202,7 +206,7 @@ const hayateMoves = {
 
 // カゲ：構えて受け流す。足元を這う影
 const kageMoves = {
-  ...normals({ sp: 0, r: 1.04, d: 0.98 }),
+  ...normals({ sp: 0, r: 1, d: 0.98 }),
   spN: {
     id: 'spN', name: '影返し', rank: 4, total: 44, parry: [3, 18], counter: 'cnt', boxes: [],
     anim: [[0, 'parry'], [25, 'idle']],
@@ -276,11 +280,11 @@ const tsuzumiMoves = {
     anim: [[0, 'aWind'], [9, 'slam'], [30, 'crouch']],
   },
   spF: {
-    id: 'spF', name: '乱れ打ち', rank: 4, total: 42,
-    boxes: [6, 10, 14].map((f) => hitbox(f, 2, [72, 60, 100, 100], { dmg: 22, stun: 26, block: 8, kb: 1, lv: 'm', hs: 4, fx: 'l' }))
-      .concat([hitbox(19, 3, [80, 60, 110, 110], { dmg: 45, stun: 30, block: 14, kb: 7, lv: 'm', launch: 12, kd: true, hs: 10, fx: 'h', chip: 4 })]),
-    motion: [{ from: 3, to: 18, vx: 7 }],
-    anim: [[0, 'jabW'], [6, 'jab'], [9, 'heavy'], [13, 'jab'], [18, 'heavy'], [30, 'idle']],
+    id: 'spF', name: '乱れ打ち', rank: 4, total: 45,
+    boxes: [9, 13, 17].map((f) => hitbox(f, 2, [72, 60, 100, 100], { dmg: 22, stun: 26, block: 8, kb: 1, lv: 'm', hs: 4, fx: 'l' }))
+      .concat([hitbox(22, 3, [80, 60, 110, 110], { dmg: 45, stun: 30, block: 10, kb: 7, lv: 'm', launch: 12, kd: true, hs: 10, fx: 'h', chip: 4 })]),
+    motion: [{ from: 6, to: 21, vx: 7 }],
+    anim: [[0, 'jabW'], [9, 'jab'], [12, 'heavy'], [16, 'jab'], [21, 'heavy'], [33, 'idle']],
   },
   super: {
     id: 'super', name: '大太鼓', rank: 5, super: true, total: 60, inv: [1, 16], boxes: [],
@@ -322,11 +326,11 @@ const oniMoves = {
 
 // クサリ：鎖鎌で遠くの相手を引き寄せる（pull）
 const kusariMoves = {
-  ...normals({ sp: -1, r: 1.1, d: 1.1 }),
+  ...normals({ sp: -1, r: 0.96, d: 0.94 }),
   spN: {
-    id: 'spN', name: '鎖投げ', rank: 4, total: 42, chain: true,
-    boxes: [hitbox(12, 5, [230, 90, 210, 36], { dmg: 65, stun: 40, block: 12, kb: 0, lv: 'm', pull: true, hs: 9, fx: 'm', chip: 3 })],
-    anim: [[0, 'castW'], [11, 'jab'], [30, 'idle']],
+    id: 'spN', name: '鎖投げ', rank: 4, total: 40, chain: true,
+    boxes: [hitbox(10, 5, [230, 90, 210, 36], { dmg: 75, stun: 40, block: 15, kb: 0, lv: 'm', pull: true, hs: 9, fx: 'm', chip: 3 })],
+    anim: [[0, 'castW'], [9, 'jab'], [28, 'idle']],
   },
   spD: {
     id: 'spD', name: '回転鎌', rank: 4, total: 38, inv: [1, 6], chain: true,
@@ -334,9 +338,9 @@ const kusariMoves = {
     anim: [[0, 'crouch'], [5, 'win'], [20, 'idle']],
   },
   spF: {
-    id: 'spF', name: '鎖払い', rank: 4, total: 44, crouch: true, chain: true,
-    boxes: [hitbox(12, 5, [200, 4, 220, 34], { dmg: 68, stun: 36, block: 12, kb: 0, lv: 'l', pull: true, hs: 9, fx: 'm', chip: 3 })],
-    anim: [[0, 'crouch'], [11, 'sweep'], [28, 'crouch']],
+    id: 'spF', name: '鎖払い', rank: 4, total: 42, crouch: true, chain: true,
+    boxes: [hitbox(10, 5, [200, 4, 220, 34], { dmg: 80, stun: 36, block: 15, kb: 0, lv: 'l', pull: true, hs: 9, fx: 'm', chip: 3 })],
+    anim: [[0, 'crouch'], [9, 'sweep'], [26, 'crouch']],
   },
   super: {
     id: 'super', name: '鎖縛り', rank: 5, super: true, total: 74, inv: [1, 12], chain: true,
@@ -411,7 +415,7 @@ const hamiMoves = {
 
 // マボロシ：分身を置き、本体と分身の両方から幻の刃を飛ばす（makeClone / echo / swapClone）
 const maboroshiMoves = {
-  ...normals({ sp: -1, r: 1.02, d: 1.02 }),
+  ...normals({ sp: -1, r: 0.98, d: 0.86 }),
   spN: {
     id: 'spN', name: '幻刃', hint: '分身からも出る', rank: 4, total: 38, oneProj: true, boxes: [],
     anim: [[0, 'castW'], [10, 'cast']],
@@ -440,7 +444,7 @@ const maboroshiMoves = {
 
 // ツバサ：空中ダッシュと滑空で空を舞う（airDash / glide）
 const tsubasaMoves = {
-  ...normals({ sp: -1, r: 0.98, d: 0.98 }),
+  ...normals({ sp: -1, r: 0.96, d: 0.88 }),
   spN: {
     id: 'spN', name: '風切り羽', rank: 4, total: 32, oneProj: true, boxes: [],
     anim: [[0, 'castW'], [8, 'cast']],
@@ -461,7 +465,7 @@ const tsubasaMoves = {
   spF: {
     id: 'spF', name: '突風脚', rank: 4, total: 40,
     boxes: [hitbox(8, 10, [70, 40, 110, 90], { dmg: 85, stun: 30, block: 16, kb: 8, lv: 'm', launch: 10, kd: true, hs: 10, fx: 'h', chip: 5 })],
-    motion: [{ from: 4, to: 16, vx: 14 }],
+    motion: [{ from: 4, to: 16, vx: 11.5 }],
     anim: [[0, 'dashF'], [7, 'kickM'], [24, 'idle']],
   },
   super: {
@@ -475,7 +479,7 @@ const tsubasaMoves = {
 
 // カブト：盾で守る。ガード中に必殺で反撃（guardCancel → gc）、飛び道具を弾き返す（reflect）
 const kabutoMoves = {
-  ...normals({ sp: 0, r: 1.08, d: 1.12 }),
+  ...normals({ sp: 1, r: 1.08, d: 1.12 }),
   spN: {
     id: 'spN', name: '盾突き', rank: 4, total: 46, armor: [3, 14],
     boxes: [hitbox(14, 5, [84, 50, 100, 140], { dmg: 105, stun: 30, block: 20, kb: 10, lv: 'm', launch: 10, kd: true, wall: true, hs: 13, fx: 'h', chip: 6 })],
